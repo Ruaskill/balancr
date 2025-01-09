@@ -30,7 +30,13 @@ class DataLoader:
         if file_path.suffix.lower() == ".csv":
             data = pd.read_csv(file_path)
         elif file_path.suffix.lower() in [".xlsx", ".xls"]:
-            data = pd.read_excel(file_path)
+            try:
+                data = pd.read_excel(file_path)
+            except ModuleNotFoundError:
+                raise ModuleNotFoundError(
+                    "The openpyxl package is required to read Excel files. "
+                    "Please install it using: pip install openpyxl"
+                )
         else:
             raise ValueError(f"Unsupported file format: {file_path.suffix}")
 
