@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="imbalance-framework",
+    name="imbalance_framework",
     version="0.1.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
@@ -12,6 +12,7 @@ setup(
         "matplotlib>=3.4.0",
         "seaborn>=0.11.0",
         "imbalanced-learn>=0.8.0",
+        "openpyxl>=3.0.0",
     ],
     extras_require={
         "dev": [
