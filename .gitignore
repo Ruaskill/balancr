@@ -14,7 +14,7 @@ env/
 .env/
 .venv/
 
-# IDE specific files (if you're using PyCharm, VS Code, etc.)
+# IDE specific files
 .idea/
 .vscode/
 *.swp
