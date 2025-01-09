@@ -1,1 +1,21 @@
-*egg-info
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution/packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments (if you're using any)
+venv/
+env/
+.env/
+.venv/
+
+# IDE specific files (if you're using PyCharm, VS Code, etc.)
+.idea/
+.vscode/
+*.swp
+.DS_Store
