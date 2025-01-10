@@ -35,7 +35,7 @@ This project is currently available as a cloneable repository and is under activ
 Currently, the framework can be installed by cloning this repository:
 
 ```bash
-git clone https://github.com/yourusername/balancing-techniques-framework.git
+git clone https://gitlab.eeecs.qub.ac.uk/40353634/csc3002-balancing-techniques-framework.git
 cd balancing-techniques-framework
 pip install -r requirements.txt
 ```
