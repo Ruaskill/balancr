@@ -71,20 +71,27 @@ class BalancingFramework:
             self.preprocess_data()
 
     def preprocess_data(
-        self, scale_features: bool = True, encode_labels: bool = True
+        self,
+        handle_missing: str = "mean",
+        scale: str = "standard",
+        encode: str = "auto",
     ) -> None:
         """
-        Preprocess the loaded data.
+        Preprocess the loaded data with enhanced options.
 
         Args:
-            scale_features: Whether to scale features
-            encode_labels: Whether to encode categorical labels
+            handle_missing: Strategy to handle missing values
+                ("drop", "mean", "median", "mode", "none")
+            scale: Scaling method
+                ("standard", "minmax", "robust", "none")
+            encode: Encoding method for categorical features
+                ("auto", "onehot", "label", "ordinal", "none")
         """
         if self.X is None or self.y is None:
             raise ValueError("No data loaded. Call load_data() first.")
 
         self.X, self.y = self.preprocessor.preprocess(
-            self.X, self.y, scale_features=scale_features, encode_labels=encode_labels
+            self.X, self.y, handle_missing=handle_missing, scale=scale, encode=encode
         )
 
     def inspect_class_distribution(self, plot: bool = True) -> Dict[Any, int]:

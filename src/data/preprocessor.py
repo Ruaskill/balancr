@@ -1,16 +1,25 @@
 from typing import Tuple, Dict, Any, Optional
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import (
+    StandardScaler,
+    MinMaxScaler,
+    RobustScaler,
+    LabelEncoder,
+)
+from sklearn.impute import SimpleImputer
 
 
 class DataPreprocessor:
     """Handles data preprocessing operations"""
 
     def __init__(self):
-        self.scaler = StandardScaler()
-        self.label_encoder = LabelEncoder()
+        self.scaler = None
+        self.imputer = None
+        self.label_encoder = None
         self.feature_names = None
+        self.categorical_features = None
+        self.numerical_features = None
 
     def inspect_class_distribution(self, y: np.ndarray) -> Dict[Any, int]:
         """
@@ -64,32 +73,71 @@ class DataPreprocessor:
         self,
         X: np.ndarray,
         y: np.ndarray,
-        scale_features: bool = True,
-        encode_labels: bool = True,
+        handle_missing: str = "mean",
+        scale: str = "standard",
+        encode: str = "auto",
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Preprocess the data
+        Preprocess the data with enhanced options
 
         Args:
             X: Feature matrix
             y: Target vector
-            scale_features: Whether to scale features
-            encode_labels: Whether to encode categorical labels
+            handle_missing: Strategy to handle missing values
+                ("drop", "mean", "median", "mode", "none")
+            scale: Scaling method
+                ("standard", "minmax", "robust", "none")
+            encode: Encoding method for categorical features
+                ("auto", "onehot", "label", "ordinal", "none")
 
         Returns:
             Preprocessed X and y
         """
+        # Convert to DataFrame for more flexible processing if not already
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+
         # Handle missing values
-        if np.isnan(X).any():
-            # Replace missing values with mean of column
-            X = np.nan_to_num(X, nan=np.nanmean(X, axis=0))
+        if handle_missing != "none" and X.isna().any().any():
+            if handle_missing == "drop":
+                # Remove rows with any missing values
+                mask = ~X.isna().any(axis=1)
+                X = X[mask]
+                y = y[mask] if isinstance(y, pd.Series) else y[mask]
+            else:
+                # Use SimpleImputer for other strategies
+                strategy = (
+                    handle_missing
+                    if handle_missing in ["mean", "median", "most_frequent"]
+                    else "mean"
+                )
+                if handle_missing == "mode":
+                    strategy = "most_frequent"
 
-        # Scale features
-        if scale_features:
-            X = self.scaler.fit_transform(X)
+                imputer = SimpleImputer(strategy=strategy)
+                X = pd.DataFrame(imputer.fit_transform(X), columns=X.columns)
 
-        # Encode labels if they're not already numeric
-        if encode_labels and not np.issubdtype(y.dtype, np.number):
-            y = self.label_encoder.fit_transform(y)
+        # Apply scaling if requested
+        if scale != "none":
+            if scale == "standard":
+                scaler = StandardScaler()
+            elif scale == "minmax":
+                scaler = MinMaxScaler()
+            elif scale == "robust":
+                scaler = RobustScaler()
+            else:
+                scaler = StandardScaler()  # Default
 
-        return X, y
+            X = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+
+        # Encode labels if necessary
+        if encode != "none":
+            # Determine if y needs encoding
+            if not np.issubdtype(y.dtype, np.number):
+                if encode in ["auto", "label"]:
+                    # Use label encoding for the target
+                    self.label_encoder = LabelEncoder()
+                    y = self.label_encoder.fit_transform(y)
+
+        # Return as numpy arrays to maintain compatibility
+        return X.values, y
