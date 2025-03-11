@@ -6,6 +6,7 @@ matplotlib>=3.4.0
 seaborn>=0.11.0
 imbalanced-learn>=0.8.0
 openpyxl>=3.0.0
+colorama>=0.4
 
 # Development dependencies
 pytest>=6.0.0

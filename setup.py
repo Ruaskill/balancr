@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="imbalance_framework",
+    name="balancr",
     version="0.1.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
@@ -13,7 +13,13 @@ setup(
         "seaborn>=0.11.0",
         "imbalanced-learn>=0.8.0",
         "openpyxl>=3.0.0",
+        "colorama>=0.4.4",
     ],
+    entry_points={
+        "console_scripts": [
+            "balancr=imbalance_framework.cli.main:main",
+        ],
+    },
     extras_require={
         "dev": [
             "pytest>=6.0.0",
