@@ -39,6 +39,9 @@ def initialise_config(config_path: str, force: bool = False) -> None:
         "output": {
             "metrics": ["precision", "recall", "f1", "roc_auc"],
             "visualisations": ["all"],
+            "display_visualisations": False,
+            "save_metrics_formats": ["csv"],
+            "save_vis_formats": ["png"],
         },
     }
 
