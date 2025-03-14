@@ -10,9 +10,9 @@ import logging
 from pathlib import Path
 
 
-def initialize_config(config_path: str, force: bool = False) -> None:
+def initialise_config(config_path: str, force: bool = False) -> None:
     """
-    Initialize a new configuration file with default settings.
+    Initialise a new configuration file with default settings.
 
     Args:
         config_path: Path to the configuration file
@@ -39,9 +39,6 @@ def initialize_config(config_path: str, force: bool = False) -> None:
         "output": {
             "metrics": ["precision", "recall", "f1", "roc_auc"],
             "visualisations": ["all"],
-            "display_visualisations": False,
-            "save_metrics_formats": ["csv"],
-            "save_vis_formats": ["png"],
         },
     }
 
@@ -52,7 +49,7 @@ def initialize_config(config_path: str, force: bool = False) -> None:
     with open(config_path, "w") as f:
         json.dump(default_config, f, indent=2)
 
-    logging.info(f"Initialized configuration file at {config_path}")
+    logging.info(f"Initialised configuration file at {config_path}")
 
 
 def load_config(config_path: str) -> dict:
@@ -97,8 +94,8 @@ def update_config(config_path: str, settings: dict) -> None:
     try:
         current_config = load_config(config_path)
     except FileNotFoundError:
-        # Initialize if it doesn't exist
-        initialize_config(config_path)
+        # Initialise if it doesn't exist
+        initialise_config(config_path)
         current_config = load_config(config_path)
 
     # Update configuration recursively
