@@ -19,14 +19,6 @@ from . import utils
 __version__ = "0.1.0"
 
 
-def setup_logging(verbose):
-    """Configure logging based on verbosity level."""
-    log_level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(level=log_level, format="%(levelname)s: %(message)s")
-
-    utils.setup_colored_logging()
-
-
 def create_parser():
     """Create and configure the argument parser with all supported commands."""
     # flake8: noqa
@@ -81,12 +73,22 @@ Full documentation available at: https://github.com/Ruaskill/balancr
         version=f"balancr v{__version__}",
         help="Show the version number and exit",
     )
-    parser.add_argument(
+
+    # Mutually exclusive group for logging options
+    log_group = parser.add_mutually_exclusive_group()
+    log_group.add_argument(
         "--verbose",
         "-v",
         action="store_true",
         help="Enable verbose output with detailed logging information",
     )
+    log_group.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Minimal output - only show warnings and errors",
+    )
+
     parser.add_argument(
         "--config-path",
         default=Path.home() / ".balancr" / "config.json",
@@ -130,7 +132,9 @@ Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "file_path", type=str, help="Path to the data file (currently supports CSV, Excel)"
+        "file_path",
+        type=str,
+        help="Path to the data file (currently supports CSV, Excel)",
     )
     parser.add_argument(
         "--target-column",
@@ -208,16 +212,17 @@ Examples:
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
-    
+
     group.add_argument(
         "techniques",
         nargs="*",
         help="Names of balancing techniques to compare (use --list-available to see options)",
         default=[],
     )
-    
+
     group.add_argument(
-        "-l", "--list-available",
+        "-l",
+        "--list-available",
         action="store_true",
         help="List all available balancing techniques",
     )
@@ -426,8 +431,16 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
+    # Determine logging level based on arguments
+    if args.verbose:
+        log_level = "verbose"
+    elif args.quiet:
+        log_level = "quiet"
+    else:
+        log_level = "default"
+
     # Configure logging
-    setup_logging(args.verbose)
+    utils.setup_logging(log_level)
 
     # Ensure config directory exists
     config_path = Path(args.config_path)
