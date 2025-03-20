@@ -94,7 +94,10 @@ class BalancingFramework:
             self.X, self.y, handle_missing=handle_missing, scale=scale, encode=encode
         )
 
-    def inspect_class_distribution(self, save_path: Optional[str] = None, plot: bool = False) -> Dict[Any, int]:
+    def inspect_class_distribution(self,
+                                   save_path: Optional[str] = None,
+                                   display: bool = False
+                                   ) -> Dict[Any, int]:
         """
         Inspect the distribution of classes in the target variable.
 
@@ -109,8 +112,10 @@ class BalancingFramework:
 
         distribution = self._get_class_distribution()
 
-        if save_path:
-            plot_class_distribution(distribution, title="Imbalanced Data Class Distribution", save_path=save_path)
+        plot_class_distribution(distribution,
+                                title="Imbalanced Dataset Class Comparison",
+                                save_path=save_path,
+                                display=display)
 
         return distribution
 
@@ -281,6 +286,7 @@ class BalancingFramework:
     def compare_balanced_class_distributions(
         self,
         save_path: Optional[str] = None,
+        display: bool = False
     ) -> None:
         """
         Compare class distributions of balanced datasets for all techniques.
@@ -310,11 +316,13 @@ class BalancingFramework:
             distributions,
             title="Class Distribution Comparison After Balancing",
             save_path=save_path,
+            display=display
         )
 
     def generate_learning_curves(
         self,
         save_path: Optional[str] = None,
+        display: bool = False
     ) -> None:
         """
         Generate and plot learning curves for multiple balancing techniques.
@@ -331,7 +339,9 @@ class BalancingFramework:
             techniques_data=self.current_balanced_datasets
         )
 
-        plot_learning_curves(learning_curve_data, save_path=save_path)
+        plot_learning_curves(learning_curve_data,
+                             save_path=save_path,
+                             display=display)
 
     def _get_class_distribution(self) -> Dict[Any, int]:
         """Get the distribution of classes in the target variable."""

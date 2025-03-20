@@ -10,6 +10,7 @@ def plot_class_distribution(
     distribution: Dict[Any, int],
     title: str = "Class Distribution",
     save_path: Optional[str] = None,
+    display: bool = False,
 ) -> None:
     """Plot the distribution of classes in the dataset."""
     if distribution is None:
@@ -31,15 +32,18 @@ def plot_class_distribution(
 
     if save_path:
         plt.savefig(save_path)
-        plt.close()
-    else:
+
+    if display:
         plt.show()
+
+    plt.close()
 
 
 def plot_class_distributions_comparison(
     distributions: Dict[str, Dict[Any, int]],
     title: str = "Class Distribution Comparison",
     save_path: Optional[str] = None,
+    display: bool = False,
 ) -> None:
     """
     Compare class distributions across multiple techniques using bar plots.
@@ -103,18 +107,20 @@ def plot_class_distributions_comparison(
     plt.legend(title="Technique")
     plt.grid(True)
 
-    # Save or show plot
     if save_path:
-        plt.savefig(save_path, bbox_inches="tight")
-        plt.close()
-    else:
+        plt.savefig(save_path)
+
+    if display:
         plt.show()
+
+    plt.close()
 
 
 def plot_comparison_results(
     results: Dict[str, Dict[str, float]],
     metrics_to_plot: Optional[list] = None,
     save_path: Optional[str] = None,
+    display: bool = False,
 ) -> None:
     """
     Plot comparison of different techniques using various metrics.
@@ -169,16 +175,19 @@ def plot_comparison_results(
     plt.tight_layout()
 
     if save_path:
-        plt.savefig(save_path, bbox_inches="tight")
-        plt.close()
-    else:
+        plt.savefig(save_path)
+
+    if display:
         plt.show()
+
+    plt.close()
 
 
 def plot_learning_curves(
     learning_curve_data: dict,
     title: str = "Learning Curves",
     save_path: Optional[str] = None,
+    display: bool = False,
 ):
     """
     Plot learning curves for multiple techniques in subplots.
@@ -247,6 +256,8 @@ def plot_learning_curves(
 
     if save_path:
         plt.savefig(save_path)
-        plt.close()
-    else:
+
+    if display:
         plt.show()
+
+    plt.close()
