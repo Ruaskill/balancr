@@ -94,12 +94,12 @@ class BalancingFramework:
             self.X, self.y, handle_missing=handle_missing, scale=scale, encode=encode
         )
 
-    def inspect_class_distribution(self, plot: bool = True) -> Dict[Any, int]:
+    def inspect_class_distribution(self, save_path: Optional[str] = None, plot: bool = False) -> Dict[Any, int]:
         """
         Inspect the distribution of classes in the target variable.
 
         Args:
-            plot: Whether to create a visualization
+            plot: Whether to create a visualisation
 
         Returns:
             Dictionary mapping class labels to their counts
@@ -109,8 +109,8 @@ class BalancingFramework:
 
         distribution = self._get_class_distribution()
 
-        if plot:
-            plot_class_distribution(distribution)
+        if save_path:
+            plot_class_distribution(distribution, title="Imbalanced Data Class Distribution", save_path=save_path)
 
         return distribution
 
