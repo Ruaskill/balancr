@@ -9,6 +9,8 @@ import logging
 import json
 from pathlib import Path
 
+from evaluation.visualisation import plot_comparison_results
+
 from . import config
 
 # Will be used to interact with the core balancing framework
@@ -434,18 +436,13 @@ def run_comparison(args):
                 encode=preproc.get("encode", "auto"),
             )
 
-        # Determine if visualisations should be plotted during comparison
-        plot_during_compare = display_visualisations and "metrics" in visualisations
-        if "all" in visualisations:
-            plot_during_compare = display_visualisations
-
-        # Run comparison
+        # Run comparison - don't display plots here, we'll handle display separately
         logging.info("Comparing balancing techniques")
         results = framework.compare_techniques(
             current_config["balancers"],
             test_size=test_size,
             random_state=random_state,
-            plot_results=plot_during_compare,
+            plot_results=False,
         )
 
         # Save metrics in requested formats
@@ -459,13 +456,14 @@ def run_comparison(args):
                     include_plots=False,  # Handle plots separately below
                 )
 
-        # Generate and save visualisations
+        # Determine which visualization types to generate
         vis_types_to_generate = []
         if "all" in visualisations:
             vis_types_to_generate = ["metrics", "distribution", "learning_curves"]
         else:
             vis_types_to_generate = visualisations
 
+        # Generate, save, and optionally display visualizations
         for vis_type in vis_types_to_generate:
             if vis_type == "none":
                 continue
@@ -479,28 +477,37 @@ def run_comparison(args):
                         f"Generating metrics comparison plot in {format_type} format"
                     )
                     plot_path = output_dir / f"metrics_comparison.{format_type}"
-                    if (
-                        not plot_during_compare
-                    ):  # Only generate if not already done during comparison
-                        framework.plot_comparison_results(
-                            results, save_path=str(plot_path)
-                        )
+                    plot_comparison_results(
+                        results,
+                        save_path=str(plot_path),
+                        display=display_visualisations
+                    )
 
                 elif vis_type == "distribution":
                     logging.info(
-                        f"Generating imbalanced and balanced class distribution plots in {format_type} format"
+                        f"Generating class distribution plots in {format_type} format"
                     )
-                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution_comparison.{format_type}"
-                    framework.inspect_class_distribution(save_path=str(imbalanced_plot_path))
-                    balanced_plot_path = output_dir / f"balanced_class_distribution_comparison.{format_type}"
+                    # Original class distribution
+                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution.{format_type}"
+                    framework.inspect_class_distribution(
+                        save_path=str(imbalanced_plot_path),
+                        display=display_visualisations
+                    )
+
+                    # Balanced class distributions comparison
+                    balanced_plot_path = output_dir / f"balanced_class_distribution.{format_type}"
                     framework.compare_balanced_class_distributions(
-                        save_path=str(balanced_plot_path)
+                        save_path=str(balanced_plot_path),
+                        display=display_visualisations
                     )
 
                 elif vis_type == "learning_curves":
                     logging.info(f"Generating learning curves in {format_type} format")
                     plot_path = output_dir / f"learning_curves.{format_type}"
-                    framework.generate_learning_curves(save_path=str(plot_path))
+                    framework.generate_learning_curves(
+                        save_path=str(plot_path),
+                        display=display_visualisations
+                    )
 
         # Print summary of results
         print("\nResults Summary:")

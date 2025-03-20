@@ -326,10 +326,18 @@ Examples:
         help="Types of visualisations to generate: 'metrics' (performance comparison), 'distribution' (class balance), 'learning_curves' (model performance vs. training size), 'all', or 'none'",
     )
     parser.add_argument(
-        "--display",
-        action="store_true",
-        help="Display visualisations on screen during execution",
+    "--display",
+    dest="display",
+    action="store_true",
+    help="Display visualisations on screen during execution",
     )
+    parser.add_argument(
+        "--no-display",
+        dest="display",
+        action="store_false",
+        help="Don't display visualisations during execution",
+    )
+    parser.set_defaults(display=False)
     parser.add_argument(
         "--save-formats",
         nargs="+",
