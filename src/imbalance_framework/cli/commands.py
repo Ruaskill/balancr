@@ -488,11 +488,13 @@ def run_comparison(args):
 
                 elif vis_type == "distribution":
                     logging.info(
-                        f"Generating class distribution plot in {format_type} format"
+                        f"Generating imbalanced and balanced class distribution plots in {format_type} format"
                     )
-                    plot_path = output_dir / f"class_distributions.{format_type}"
+                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution_comparison.{format_type}"
+                    framework.inspect_class_distribution(save_path=str(imbalanced_plot_path))
+                    balanced_plot_path = output_dir / f"balanced_class_distribution_comparison.{format_type}"
                     framework.compare_balanced_class_distributions(
-                        save_path=str(plot_path)
+                        save_path=str(balanced_plot_path)
                     )
 
                 elif vis_type == "learning_curves":
