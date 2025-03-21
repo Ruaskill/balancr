@@ -634,6 +634,16 @@ def run_comparison(args):
                     balanced_plot_path = (
                         output_dir / f"balanced_class_distribution.{format_type}"
                     )
+
+                    # Original class distribution
+                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution.{format_type}"
+                    framework.inspect_class_distribution(
+                        save_path=str(imbalanced_plot_path),
+                        display=display_visualisations
+                    )
+
+                    # Balanced class distributions comparison
+                    balanced_plot_path = output_dir / f"balanced_class_distribution.{format_type}"
                     framework.compare_balanced_class_distributions(
                         save_path=str(balanced_plot_path),
                         display=display_visualisations,
@@ -643,7 +653,8 @@ def run_comparison(args):
                     logging.info(f"Generating learning curves in {format_type} format")
                     plot_path = output_dir / f"learning_curves.{format_type}"
                     framework.generate_learning_curves(
-                        save_path=str(plot_path), display=display_visualisations
+                        save_path=str(plot_path),
+                        display=display_visualisations
                     )
 
         # Print summary of results
