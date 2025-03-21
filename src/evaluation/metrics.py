@@ -12,83 +12,102 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from sklearn.model_selection import cross_val_score, learning_curve
-from sklearn.ensemble import RandomForestClassifier
 
 
 def get_metrics(
+    classifier,
     X_train_balanced: np.ndarray,
     y_train_balanced: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
-    random_state: int = 42,
 ) -> Dict[str, float]:
     """
     Calculate metrics specifically suited for imbalanced classification.
 
     Args:
+        classifier: Pre-fitted classifier instance to evaluate
         X_train_balanced: Balanced training features
         y_train_balanced: Balanced training labels
         X_test: Test features
         y_test: Test labels
-        random_state: Random seed for reproducibility
 
     Returns:
         Dictionary containing various metric scores
     """
-    # Train a classifier on balanced data
-    clf = RandomForestClassifier(random_state=random_state)
-    clf.fit(X_train_balanced, y_train_balanced)
-
     # Get predictions
-    y_pred = clf.predict(X_test)
-    y_pred_proba = clf.predict_proba(X_test)[:, 1]
+    y_pred = classifier.predict(X_test)
+
+    # For ROC AUC, we need probability predictions
+    if hasattr(classifier, "predict_proba"):
+        try:
+            y_pred_proba = classifier.predict_proba(X_test)
+            # Get probability for the positive class
+            # Assuming binary classification for now
+            if y_pred_proba.shape[1] > 1:
+                y_pred_proba = y_pred_proba[:, 1]
+            else:
+                y_pred_proba = y_pred_proba.ravel()
+        except (AttributeError, IndexError):
+            # Fall back to binary predictions if probabilities fail
+            y_pred_proba = y_pred
+    else:
+        # Use predicted classes if predict_proba isn't available
+        y_pred_proba = y_pred
 
     # Calculate confusion matrix elements
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
 
     # Calculate specificity (true negative rate)
-    specificity = tn / (tn + fp)
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
 
     # Calculate geometric mean
     g_mean = np.sqrt(recall_score(y_test, y_pred) * specificity)
 
-    return {
+    # Create metrics dictionary
+    metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
         "specificity": specificity,
         "f1": f1_score(y_test, y_pred),
         "g_mean": g_mean,
-        "roc_auc": roc_auc_score(y_test, y_pred_proba),
-        "average_precision": average_precision_score(y_test, y_pred_proba),
     }
+
+    # Add probability-based metrics if possible
+    try:
+        metrics["roc_auc"] = roc_auc_score(y_test, y_pred_proba)
+        metrics["average_precision"] = average_precision_score(y_test, y_pred_proba)
+    except ValueError:
+        # Skip these metrics if they can't be calculated
+        metrics["roc_auc"] = float("nan")
+        metrics["average_precision"] = float("nan")
+
+    return metrics
 
 
 def get_cv_scores(
+    classifier,
     X_balanced: np.ndarray,
     y_balanced: np.ndarray,
     n_folds: int = 5,
-    random_state: int = 42,
 ) -> Dict[str, float]:
     """
     Perform cross-validation and return average scores.
 
     Args:
+        classifier: Classifier instance to evaluate
         X_balanced: Balanced feature matrix
         y_balanced: Balanced target vector
         n_folds: Number of cross-validation folds
-        random_state: Random seed for reproducibility
 
     Returns:
         Dictionary containing average metric scores
     """
-    clf = RandomForestClassifier(random_state=random_state)
-
     # Calculate different metrics using cross-validation
     metrics = {}
     for metric in ["accuracy", "precision", "recall", "f1"]:
         scores = cross_val_score(
-            clf, X_balanced, y_balanced, cv=n_folds, scoring=metric
+            classifier, X_balanced, y_balanced, cv=n_folds, scoring=metric
         )
         metrics[f"cv_{metric}_mean"] = scores.mean()
         metrics[f"cv_{metric}_std"] = scores.std()
@@ -97,35 +116,32 @@ def get_cv_scores(
 
 
 def get_learning_curve_data(
+    classifier,
     X: np.ndarray,
     y: np.ndarray,
     train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
     n_folds: int = 5,
-    random_state: int = 42,
 ) -> Dict[str, np.ndarray]:
     """
     Compute data for plotting learning curves.
 
     Args:
+        classifier: Classifier instance to evaluate
         X: Feature matrix
         y: Target vector
         train_sizes: Relative or absolute sizes of the training dataset
         n_folds: Number of cross-validation folds
-        random_state: Random seed for reproducibility
 
     Returns:
         Dictionary containing training sizes, training scores, and validation scores
     """
-    clf = RandomForestClassifier(random_state=random_state)
-
     train_sizes_abs, train_scores, val_scores = learning_curve(
-        estimator=clf,
+        estimator=classifier,
         X=X,
         y=y,
         train_sizes=train_sizes,
         cv=n_folds,
         scoring="accuracy",  # Default metric is accuracy
-        random_state=random_state,
         shuffle=True,
     )
 
@@ -137,22 +153,20 @@ def get_learning_curve_data(
 
 
 def get_learning_curve_data_multiple_techniques(
-    techniques_data: Dict[
-        str, Dict[str, np.ndarray]
-    ],
+    classifier,
+    techniques_data: Dict[str, Dict[str, np.ndarray]],
     train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
     n_folds: int = 5,
-    random_state: int = 42,
 ) -> Dict[str, Dict[str, np.ndarray]]:
     """
     Compute data for plotting learning curves for multiple techniques.
 
     Args:
+        classifier: Classifier instance to evaluate
         techniques_data: A dictionary where keys are technique names and values are dictionaries
                           containing 'X_balanced' and 'y_balanced' for each technique
         train_sizes: Relative or absolute sizes of the training dataset
         n_folds: Number of cross-validation folds
-        random_state: Random seed for reproducibility
 
     Returns:
         Dictionary containing training sizes, training scores, and validation scores for each technique
@@ -164,16 +178,13 @@ def get_learning_curve_data_multiple_techniques(
         X_balanced = data["X_balanced"]
         y_balanced = data["y_balanced"]
 
-        clf = RandomForestClassifier(random_state=random_state)
-
         train_sizes_abs, train_scores, val_scores = learning_curve(
-            estimator=clf,
+            estimator=classifier,
             X=X_balanced,
             y=y_balanced,
             train_sizes=train_sizes,
             cv=n_folds,
             scoring="accuracy",  # Default metric is accuracy
-            random_state=random_state,
             shuffle=True,
         )
 

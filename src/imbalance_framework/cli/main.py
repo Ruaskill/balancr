@@ -102,7 +102,7 @@ Full documentation available at: https://github.com/Ruaskill/balancr
     register_load_data_command(subparsers)
     register_preprocess_command(subparsers)
     register_select_techniques_command(subparsers)
-    register_select_classifier_command(subparsers)
+    register_select_classifiers_command(subparsers)
     register_configure_metrics_command(subparsers)
     register_configure_visualisations_command(subparsers)
     register_configure_evaluation_command(subparsers)
@@ -229,35 +229,52 @@ Examples:
     parser.set_defaults(func=commands.select_techniques)
 
 
-def register_select_classifier_command(subparsers):
-    """Register the select-classifier command."""
+def register_select_classifiers_command(subparsers):
+    """Register the select-classifiers command."""
     parser = subparsers.add_parser(
-        "select-classifier",
-        help="Select classifier for evaluation",
-        description="Choose which classification algorithm to use when evaluating balanced datasets.",
+        "select-classifiers",
+        help="Select classifier(s) for evaluation",
+        description="Choose which classification algorithm(s) to use when evaluating balanced datasets.",
         epilog="""
 Examples:
-  # Use Random Forest with default settings
-  balancr select-classifier RandomForest
+  # Use Random Forest with default settings (replaces existing classifiers)
+  balancr select-classifiers RandomForestClassifier
 
-  # Use Logistic Regression with custom parameters
-  balancr select-classifier LogisticRegression --params '{"C": 0.1, "solver": "liblinear"}'
+  # Select multiple classifiers
+  balancr select-classifiers RandomForestClassifier LogisticRegression SVC
 
-  # Use SVM classifier
-  balancr select-classifier SVM --params '{"kernel": "rbf", "C": 1.0}'
+  # Add classifiers without replacing existing ones
+  balancr select-classifiers -a LogisticRegression
+
+  # List all available classifiers
+  balancr select-classifiers --list-available
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "classifier",
-        choices=["RandomForest", "LogisticRegression", "SVM", "KNN", "DecisionTree"],
-        help="Classification algorithm to use for evaluating the balancing techniques",
+    
+    group = parser.add_mutually_exclusive_group(required=True)
+    
+    group.add_argument(
+        "classifiers",
+        nargs="*",
+        help="Names of classifiers to use (use --list-available to see options)",
+        default=[],
     )
-    parser.add_argument(
-        "--params",
-        type=str,
-        help="JSON string with classifier parameters (e.g. '{\"n_estimators\": 100}')",
+    
+    group.add_argument(
+        "-l",
+        "--list-available",
+        action="store_true",
+        help="List all available classifiers",
     )
+    
+    parser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Add to existing classifiers instead of replacing them",
+    )
+    
     parser.set_defaults(func=commands.select_classifier)
 
 
