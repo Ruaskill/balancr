@@ -7,14 +7,17 @@ registered in main.py
 
 import logging
 import json
+import inspect
 from pathlib import Path
+
+from evaluation.visualisation import plot_comparison_results
 
 from . import config
 
 # Will be used to interact with the core balancing framework
 try:
     from imbalance_framework.imbalance_analyser import BalancingFramework
-    from imbalance_framework.technique_registry import TechniqueRegistry
+    from imbalance_framework.classifier_registry import ClassifierRegistry
 except ImportError:
     logging.error(
         "Could not import balancing framework. Ensure it's installed correctly."
@@ -205,35 +208,168 @@ def select_classifier(args):
     Returns:
         int: Exit code
     """
-    logging.info(f"Selecting classifier: {args.classifier}")
+    # Check if we should list available classifiers
+    if args.list_available:
+        return list_available_classifiers(args)
 
-    # Parse classifier parameters if provided
-    classifier_params = {}
-    if args.params:
-        try:
-            classifier_params = json.loads(args.params)
-        except json.JSONDecodeError:
-            logging.error("Invalid JSON for classifier parameters")
-            return 1
+    logging.info(f"Selecting classifiers: {', '.join(args.classifiers)}")
 
-    # Update configuration with classifier settings
-    settings = {"classifier": {"name": args.classifier, "params": classifier_params}}
+    # Create classifier registry
+    if ClassifierRegistry is None:
+        logging.error("Classifier registry not available. Please check installation.")
+        return 1
+
+    registry = ClassifierRegistry()
+
+    # Get classifier configurations
+    classifier_configs = {}
+
+    for classifier_name in args.classifiers:
+        # Get the classifier class
+        classifier_class = registry.get_classifier_class(classifier_name)
+
+        if classifier_class is None:
+            logging.error(f"Classifier '{classifier_name}' not found.")
+            logging.info(
+                "Use 'balancr select-classifier --list-available' to see available classifiers."
+            )
+            continue
+
+        # Get default parameters
+        params = get_classifier_default_params(classifier_class)
+        classifier_configs[classifier_name] = params
+
+    # If no valid classifiers were found
+    if not classifier_configs:
+        logging.error("No valid classifiers selected.")
+        return 1
 
     try:
+        # Read existing config (we need this regardless of append mode)
+        current_config = config.load_config(args.config_path)
+
+        if args.append:
+            # Append mode: Update existing classifiers
+            existing_classifiers = current_config.get("classifiers", {})
+            existing_classifiers.update(classifier_configs)
+            settings = {"classifiers": existing_classifiers}
+
+            print(f"\nAdded classifiers: {', '.join(classifier_configs.keys())}")
+            print(f"Total classifiers: {', '.join(existing_classifiers.keys())}")
+        else:
+            # Replace mode: Create a completely new config entry
+            # We'll create a copy of the current config and explicitly set the classifiers
+            new_config = dict(current_config)  # shallow copy is sufficient
+            new_config["classifiers"] = classifier_configs
+
+            # Use config.write_config instead of update_config to replace the entire file
+            config_path = Path(args.config_path)
+            with open(config_path, "w") as f:
+                json.dump(new_config, f, indent=2)
+
+            print(
+                f"\nReplaced classifiers with: {', '.join(classifier_configs.keys())}"
+            )
+
+            # Return early since we've manually written the config
+            print("Default parameters have been added to the configuration file.")
+            print("You can modify them by editing the configuration or using the CLI.")
+            return 0
+
+        # Only reach here in append mode
         config.update_config(args.config_path, settings)
 
-        # Display confirmation
-        print(f"\nSelected classifier: {args.classifier}")
-        if classifier_params:
-            print("Classifier parameters:")
-            for param, value in classifier_params.items():
-                print(f"  - {param}: {value}")
+        print("Default parameters have been added to the configuration file.")
+        print("You can modify them by editing the configuration or using the CLI.")
 
         return 0
+    except Exception as e:
+        logging.error(f"Failed to select classifiers: {e}")
+        return 1
+
+
+def list_available_classifiers(args):
+    """
+    List all available classifiers.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    if ClassifierRegistry is None:
+        logging.error("Classifier registry not available. Please check installation.")
+        return 1
+
+    registry = ClassifierRegistry()
+    classifiers = registry.list_available_classifiers()
+
+    print("\nAvailable Classifiers:")
+
+    # Print sklearn classifiers by module
+    if "sklearn" in classifiers:
+        print("\nScikit-learn Classifiers:")
+        for module_name, clf_list in classifiers["sklearn"].items():
+            print(f"\n  {module_name.capitalize()}:")
+            for clf in sorted(clf_list):
+                print(f"    - {clf}")
+
+    # Print custom classifiers if any
+    if "custom" in classifiers and classifiers["custom"]:
+        print("\nCustom Classifiers:")
+        for module_name, clf_list in classifiers["custom"].items():
+            if clf_list:
+                print(f"\n  {module_name.capitalize()}:")
+                for clf in sorted(clf_list):
+                    print(f"    - {clf}")
+
+    return 0
+
+
+def get_classifier_default_params(classifier_class):
+    """
+    Extract default parameters from a classifier class.
+
+    Args:
+        classifier_class: The classifier class to inspect
+
+    Returns:
+        Dictionary of parameter names and their default values
+    """
+    params = {}
+
+    try:
+        # Get the signature of the __init__ method
+        sig = inspect.signature(classifier_class.__init__)
+
+        # Process each parameter
+        for name, param in sig.parameters.items():
+            # Skip 'self' parameter
+            if name == "self":
+                continue
+
+            # Get default value if it exists
+            if param.default is not inspect.Parameter.empty:
+                # Handle special case for None (JSON uses null)
+                if param.default is None:
+                    params[name] = None
+                # Handle other types that can be serialised to JSON
+                elif isinstance(param.default, (int, float, str, bool, list, dict)):
+                    params[name] = param.default
+                else:
+                    # Convert non-JSON-serialisable defaults to string representation
+                    params[name] = str(param.default)
+            else:
+                # For parameters without defaults, use None
+                params[name] = None
 
     except Exception as e:
-        logging.error(f"Failed to select classifier: {e}")
-        return 1
+        logging.warning(
+            f"Error extracting parameters from {classifier_class.__name__}: {e}"
+        )
+
+    return params
 
 
 def configure_metrics(args):
@@ -411,7 +547,7 @@ def run_comparison(args):
     logging.info(f"Results will be saved to: {output_dir}")
 
     try:
-        # Initialize the framework
+        # Initialise the framework
         framework = BalancingFramework()
 
         # Load data
@@ -434,18 +570,13 @@ def run_comparison(args):
                 encode=preproc.get("encode", "auto"),
             )
 
-        # Determine if visualisations should be plotted during comparison
-        plot_during_compare = display_visualisations and "metrics" in visualisations
-        if "all" in visualisations:
-            plot_during_compare = display_visualisations
-
-        # Run comparison
+        # Run comparison - don't display plots here, we'll handle display separately
         logging.info("Comparing balancing techniques")
         results = framework.compare_techniques(
             current_config["balancers"],
             test_size=test_size,
             random_state=random_state,
-            plot_results=plot_during_compare,
+            plot_results=False,
         )
 
         # Save metrics in requested formats
@@ -459,13 +590,14 @@ def run_comparison(args):
                     include_plots=False,  # Handle plots separately below
                 )
 
-        # Generate and save visualisations
+        # Determine which visualisation types to generate
         vis_types_to_generate = []
         if "all" in visualisations:
             vis_types_to_generate = ["metrics", "distribution", "learning_curves"]
         else:
             vis_types_to_generate = visualisations
 
+        # Generate, save, and optionally display visualisations
         for vis_type in vis_types_to_generate:
             if vis_type == "none":
                 continue
@@ -479,28 +611,40 @@ def run_comparison(args):
                         f"Generating metrics comparison plot in {format_type} format"
                     )
                     plot_path = output_dir / f"metrics_comparison.{format_type}"
-                    if (
-                        not plot_during_compare
-                    ):  # Only generate if not already done during comparison
-                        framework.plot_comparison_results(
-                            results, save_path=str(plot_path)
-                        )
+                    plot_comparison_results(
+                        results,
+                        save_path=str(plot_path),
+                        display=display_visualisations,
+                    )
 
                 elif vis_type == "distribution":
                     logging.info(
-                        f"Generating imbalanced and balanced class distribution plots in {format_type} format"
+                        f"Generating class distribution plots in {format_type} format"
                     )
-                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution_comparison.{format_type}"
-                    framework.inspect_class_distribution(save_path=str(imbalanced_plot_path))
-                    balanced_plot_path = output_dir / f"balanced_class_distribution_comparison.{format_type}"
+                    # Original class distribution
+                    imbalanced_plot_path = (
+                        output_dir / f"imbalanced_class_distribution.{format_type}"
+                    )
+                    framework.inspect_class_distribution(
+                        save_path=str(imbalanced_plot_path),
+                        display=display_visualisations,
+                    )
+
+                    # Balanced class distributions comparison
+                    balanced_plot_path = (
+                        output_dir / f"balanced_class_distribution.{format_type}"
+                    )
                     framework.compare_balanced_class_distributions(
-                        save_path=str(balanced_plot_path)
+                        save_path=str(balanced_plot_path),
+                        display=display_visualisations,
                     )
 
                 elif vis_type == "learning_curves":
                     logging.info(f"Generating learning curves in {format_type} format")
                     plot_path = output_dir / f"learning_curves.{format_type}"
-                    framework.generate_learning_curves(save_path=str(plot_path))
+                    framework.generate_learning_curves(
+                        save_path=str(plot_path), display=display_visualisations
+                    )
 
         # Print summary of results
         print("\nResults Summary:")
@@ -533,7 +677,7 @@ def reset_config(args):
         int: Exit code
     """
     try:
-        config.initialize_config(args.config_path, force=True)
+        config.initialise_config(args.config_path, force=True)
         logging.info("Configuration has been reset to defaults")
         return 0
     except Exception as e:
