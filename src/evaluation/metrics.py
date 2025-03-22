@@ -16,8 +16,6 @@ from sklearn.model_selection import cross_val_score, learning_curve
 
 def get_metrics(
     classifier,
-    X_train_balanced: np.ndarray,
-    y_train_balanced: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
 ) -> Dict[str, float]:
@@ -57,7 +55,7 @@ def get_metrics(
     # Calculate confusion matrix elements
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
 
-    # Calculate specificity (true negative rate)
+    # Calculate specificity
     specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
 
     # Calculate geometric mean
