@@ -35,7 +35,13 @@ def initialise_config(config_path: str, force: bool = False) -> None:
             "scale": "standard",
             "encode": "auto",
         },
-        "evaluation": {"test_size": 0.2, "cross_validation": 0, "random_state": 42},
+        "evaluation": {
+            "test_size": 0.2,
+            "cross_validation": 0,
+            "random_state": 42,
+            "learning_curve_folds": 5,
+            "learning_curve_points": 10
+            },
         "output": {
             "metrics": ["precision", "recall", "f1", "roc_auc"],
             "visualisations": ["all"],

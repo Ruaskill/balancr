@@ -381,6 +381,9 @@ Examples:
 
   # Set a specific random seed for reproducibility
   balancr configure-evaluation --random-state 123
+
+  # Set learning curve config
+  balancr configure-evaluation --learning-curve-folds 8 --learning-curve-points 12
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -401,6 +404,18 @@ Examples:
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42)",
+    )
+    parser.add_argument(
+        "--learning-curve-folds",
+        type=int,
+        default=5,
+        help="Number of cross-validation folds for learning curves (default: 5)"
+    )   
+    parser.add_argument(
+        "--learning-curve-points",
+        type=int,
+        default=10,
+        help="Number of points to plot on learning curves (default: 10)"
     )
     parser.set_defaults(func=commands.configure_evaluation)
 

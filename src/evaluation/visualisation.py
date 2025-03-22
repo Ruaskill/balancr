@@ -1,4 +1,4 @@
-"""Visualization utilities for imbalanced data analysis."""
+"""Visualisation utilities for imbalanced data analysis."""
 
 from typing import Dict, Any, Optional
 import numpy as np
@@ -66,7 +66,7 @@ def plot_class_distributions_comparison(
     if not all(isinstance(d, dict) for d in distributions.values()):
         raise ValueError("Each distribution must be a dictionary")
 
-    # Prepare data for visualization
+    # Prepare data for visualisation
     techniques = []
     classes = []
     counts = []
@@ -117,40 +117,70 @@ def plot_class_distributions_comparison(
 
 
 def plot_comparison_results(
-    results: Dict[str, Dict[str, float]],
+    results: Dict[str, Dict[str, Dict[str, Dict[str, float]]]],
+    classifier_name: str,
+    metric_type: str = "standard_metrics",
     metrics_to_plot: Optional[list] = None,
     save_path: Optional[str] = None,
     display: bool = False,
 ) -> None:
     """
-    Plot comparison of different techniques using various metrics.
+    Plot comparison of different techniques for a specific classifier and metric type.
 
     Args:
-        results: Dictionary containing results for each technique
+        results: Dictionary containing nested results structure
+        classifier_name: Name of the classifier to visualise
+        metric_type: Type of metrics to plot ('standard_metrics' or 'cv_metrics')
         metrics_to_plot: List of metrics to include in plot
         save_path: Path to save the plot
+        display: Whether to display the plot
     """
     if results is None:
         raise TypeError("Results dictionary cannot be None")
-    if not results or not isinstance(results, dict):
-        raise ValueError("Results must be a non-empty dictionary")
-    if not all(isinstance(d, dict) for d in results.values()):
-        raise ValueError("Each result must be a dictionary of metrics")
+
+    if classifier_name not in results:
+        raise ValueError(f"Classifier '{classifier_name}' not found in results")
+
+    # Extract the classifier's results
+    classifier_results = results[classifier_name]
+
+    # Create a structure for plotting with techniques as keys and metric dictionaries as values
+    plot_data = {}
+    for technique_name, technique_data in classifier_results.items():
+        if metric_type in technique_data:
+            plot_data[technique_name] = technique_data[metric_type]
+
+    if not plot_data:
+        raise ValueError(
+            f"No {metric_type} data found for classifier '{classifier_name}'"
+        )
 
     if metrics_to_plot is None:
         metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
 
+    # Filter metrics to only include those that exist in all techniques
+    common_metrics = set.intersection(
+        *[set(metrics.keys()) for metrics in plot_data.values()]
+    )
+    metrics_to_plot = [m for m in metrics_to_plot if m in common_metrics]
+
+    if not metrics_to_plot:
+        raise ValueError("No common metrics found across techniques")
+
     # Convert results to suitable format for plotting
-    techniques = list(results.keys())
+    techniques = list(plot_data.keys())
     metrics_data = {
-        metric: [results[tech][metric] for tech in techniques]
+        metric: [plot_data[tech][metric] for tech in techniques]
         for metric in metrics_to_plot
     }
 
     # Create subplot for each metric
     n_metrics = len(metrics_to_plot)
     fig, axes = plt.subplots(2, (n_metrics + 1) // 2, figsize=(15, 10), squeeze=False)
-    fig.suptitle("Comparison of Balancing Techniques", size=16)
+    fig.suptitle(
+        f"{classifier_name} - Comparison of Balancing Techniques ({metric_type.replace('_', ' ').title()})",
+        size=16,
+    )
 
     # Plot each metric
     for idx, (metric, values) in enumerate(metrics_data.items()):
@@ -160,7 +190,7 @@ def plot_comparison_results(
 
         sns.barplot(x=techniques, y=values, ax=ax)
         ax.set_title(f'{metric.replace("_", " ").title()}')
-        plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
         # Add value labels on top of bars
         for i, v in enumerate(values):
