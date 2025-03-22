@@ -47,7 +47,7 @@ def test_get_metrics(sample_data, classifier):
     # Train the classifier
     classifier.fit(X_train, y_train)
 
-    metrics = get_metrics(classifier, X_train, y_train, X_test, y_test)
+    metrics = get_metrics(classifier, X_test, y_test)
 
     # Check if all expected metrics are present
     expected_metrics = {
