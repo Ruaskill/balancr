@@ -506,9 +506,12 @@ class BalancingFramework:
 
             # Get classifier parameters from configuration
             clf_params = {}
-            if hasattr(self, 'classifier_configs') and classifier_name in self.classifier_configs:
+            if (
+                hasattr(self, "classifier_configs")
+                and classifier_name in self.classifier_configs
+            ):
                 clf_params = self.classifier_configs[classifier_name]
-            
+
             # Create classifier instance with the same parameters used in training
             classifier = clf_class(**clf_params)
 
