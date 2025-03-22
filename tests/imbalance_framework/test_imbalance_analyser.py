@@ -106,7 +106,7 @@ def test_inspect_class_distribution(framework, sample_data):
     framework.X = X
     framework.y = y
 
-    distribution = framework.inspect_class_distribution(plot=False)
+    distribution = framework.inspect_class_distribution(display=False)
     assert isinstance(distribution, dict)
     assert set(distribution.keys()) == {0, 1}
     assert distribution[0] == 2  # Count of class 0
@@ -135,7 +135,7 @@ def test_preprocess_data(framework, sample_data):
 def test_compare_techniques_no_data(framework):
     """Test comparing techniques without loading data"""
     with pytest.raises(ValueError):
-        framework.compare_techniques(["SMOTE"])
+        framework.apply_balancing_techniques(["SMOTE"])
 
 
 def test_compare_techniques(framework):
@@ -148,9 +148,7 @@ def test_compare_techniques(framework):
     framework.X = X
     framework.y = y
 
-    results = framework.compare_techniques(
-        technique_names=["SMOTE", "RandomUnderSampler"], plot_results=False
-    )
+    results = framework.apply_balancing_techniques(technique_names=["SMOTE", "RandomUnderSampler"])
 
     assert isinstance(results, dict)
     assert len(results) == 2
@@ -185,12 +183,12 @@ def test_save_results(framework, tmp_path):
 
     # Test CSV saving
     csv_path = tmp_path / "results.csv"
-    framework.save_results(csv_path, file_type="csv")
+    framework.save_results(csv_path, file_type="csv", include_plots=False)
     assert csv_path.exists()
 
     # Test JSON saving
     json_path = tmp_path / "results.json"
-    framework.save_results(json_path, file_type="json")
+    framework.save_results(json_path, file_type="json", include_plots=False)
     assert json_path.exists()
 
 
@@ -253,14 +251,14 @@ def test_generate_learning_curves(framework, tmp_path):
     framework.current_balanced_datasets = {"SMOTE": {"X_balanced": X, "y_balanced": y}}
 
     learning_curve_path = tmp_path / "learning_curve.png"
-    framework.generate_learning_curves(save_path=learning_curve_path)
+    framework.generate_learning_curves(classifier_name="RandomForestClassifier", save_path=learning_curve_path)
     assert learning_curve_path.exists()
 
 
 def test_generate_learning_curves_no_data(framework):
     """Test learning curve generation without data"""
     with pytest.raises(ValueError):
-        framework.generate_learning_curves()
+        framework.generate_learning_curves(classifier_name="RandomForestClassifier")
 
 
 def test_handle_quality_issues(framework):
