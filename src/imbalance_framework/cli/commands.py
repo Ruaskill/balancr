@@ -194,11 +194,45 @@ def select_techniques(args):
                 )
                 return 1
 
-        # Update configuration with selected techniques
-        settings = {"balancers": args.techniques}
+            # Create technique configurations with default parameters
+            balancing_techniques = {}
+            for technique_name in args.techniques:
+                # Get default parameters for this technique
+                params = framework.technique_registry.get_technique_default_params(
+                    technique_name
+                )
+                balancing_techniques[technique_name] = params
+
+        # Read existing config
+        current_config = config.load_config(args.config_path)
+
+        if args.append and "balancing_techniques" in current_config:
+            # Get existing techniques with their parameters
+            existing_techniques = current_config.get("balancing_techniques", {})
+
+            # Add new techniques to the existing ones
+            if BalancingFramework is not None:
+                existing_techniques.update(balancing_techniques)
+
+            # Update config with merged values
+            settings = {"balancing_techniques": existing_techniques}
+
+            print(f"\nAdded balancing techniques: {', '.join(args.techniques)}")
+            print(f"Total techniques: {', '.join(existing_techniques.keys())}")
+        else:
+            # Replace mode: new techniques replace existing ones
+            settings = {
+                "balancing_techniques": (
+                    balancing_techniques if BalancingFramework is not None else {}
+                )
+            }
+
+            print(f"\nSelected balancing techniques: {', '.join(args.techniques)}")
 
         config.update_config(args.config_path, settings)
-        logging.info(f"Selected balancing techniques: {', '.join(args.techniques)}")
+
+        print("Default parameters have been added to the configuration file.")
+        print("You can modify them by editing the configuration file.")
         return 0
 
     except Exception as e:
@@ -1169,7 +1203,7 @@ def run_comparison(args):
         return 1
 
     # Check if all required settings are configured
-    required_settings = ["data_file", "target_column", "balancers"]
+    required_settings = ["data_file", "target_column", "balancing_techniques"]
     missing_settings = [s for s in required_settings if s not in current_config]
 
     if missing_settings:
@@ -1200,8 +1234,10 @@ def run_comparison(args):
     cv_folds = eval_config.get("cross_validation", 5)
     random_state = eval_config.get("random_state", 42)
 
+    balancing_techniques = current_config.get("balancing_techniques", {})
+    technique_names = list(balancing_techniques.keys())
     logging.info(
-        f"Running comparison with techniques: {', '.join(current_config['balancers'])}"
+        f"Running comparison with techniques: {', '.join(technique_names)}"
     )
     logging.info(f"Results will be saved to: {output_dir}")
 
@@ -1237,9 +1273,10 @@ def run_comparison(args):
         # Apply balancing techniques
         logging.info("Applying balancing techniques...")
         framework.apply_balancing_techniques(
-            current_config["balancers"],
+            technique_names,
             test_size=test_size,
             random_state=random_state,
+            technique_params=balancing_techniques,
         )
         logging.info("Balancing techniques applied successfully")
 
@@ -1249,7 +1286,7 @@ def run_comparison(args):
         logging.info(f"Saving balanced datasets to {balanced_dir}")
         framework.generate_balanced_data(
             folder_path=str(balanced_dir),
-            techniques=current_config["balancers"],
+            techniques=technique_names,
             file_format="csv",
         )
 

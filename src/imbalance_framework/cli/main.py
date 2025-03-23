@@ -211,6 +211,9 @@ Examples:
 
   # Select multiple techniques for comparison
   balancr select-techniques ADASYN BorderlineSMOTE SMOTETomek
+  
+  # Add techniques without replacing existing ones
+  balancr select-techniques -a SMOTE RandomUnderSampler
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -230,6 +233,14 @@ Examples:
         action="store_true",
         help="List all available balancing techniques",
     )
+    
+    parser.add_argument(
+        "-a",
+        "--append",
+        action="store_true",
+        help="Add to existing techniques instead of replacing them",
+    )
+    
     parser.set_defaults(func=commands.select_techniques)
 
 

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Any
 import importlib
 import inspect
 import logging
@@ -34,7 +34,7 @@ class TechniqueRegistry:
                     if hasattr(obj, "fit_resample"):
                         self._cached_imblearn_techniques[name] = (module_path, obj)
             except ImportError as e:
-                print(f"Warning: Could not import {module_path}: {str(e)}")
+                logging.warning(f"Could not import {module_path}: {str(e)}")
 
     def get_technique_class(self, technique_name: str) -> Optional[Type[BaseBalancer]]:
         """Get the technique class by name"""
@@ -58,6 +58,72 @@ class TechniqueRegistry:
             return self._wrap_imblearn_technique(technique_class)
 
         return None
+
+    def get_technique_default_params(self, technique_name: str) -> Dict[str, Any]:
+        """
+        Extract default parameters from a technique.
+
+        Args:
+            technique_name: Name of the technique to extract parameters from
+
+        Returns:
+            Dictionary of parameter names and their default values
+        """
+
+        # Get the technique class (custom or imblearn)
+        if technique_name in self.custom_techniques:
+            technique_class = self.custom_techniques[technique_name]
+            return self._extract_params_from_class(technique_class)
+        elif technique_name in self._cached_imblearn_techniques:
+            _, technique_class = self._cached_imblearn_techniques[technique_name]
+            return self._extract_params_from_class(technique_class)
+        else:
+            logging.warning(
+                f"Technique '{technique_name}' not found. Cannot extract parameters."
+            )
+            return {}
+
+    def _extract_params_from_class(self, cls) -> Dict[str, Any]:
+        """
+        Extract default parameters from a class's __init__ method.
+
+        Args:
+            cls: The class to extract parameters from
+
+        Returns:
+            Dictionary of parameter names and their default values
+        """
+        params = {}
+
+        try:
+            # Get the signature of the __init__ method
+            sig = inspect.signature(cls.__init__)
+
+            # Process each parameter
+            for name, param in sig.parameters.items():
+                # Skip 'self' parameter
+                if name == "self":
+                    continue
+
+                # Get default value if it exists
+                if param.default is not inspect.Parameter.empty:
+                    # Handle special case for None (JSON uses null)
+                    if param.default is None:
+                        params[name] = None
+                    # Handle other types that can be serialised to JSON
+                    elif isinstance(param.default, (int, float, str, bool, list, dict)):
+                        params[name] = param.default
+                    else:
+                        # Convert non-JSON-serialisable defaults to string representation
+                        params[name] = str(param.default)
+                else:
+                    # For parameters without defaults, use None
+                    params[name] = None
+
+        except Exception as e:
+            logging.warning(f"Error extracting parameters from {cls.__name__}: {e}")
+
+        return params
 
     def list_available_techniques(self) -> Dict[str, list]:
         """List all available techniques grouped by source"""
@@ -156,9 +222,9 @@ class TechniqueRegistry:
         """Wrap imblearn technique to conform to our BaseBalancer interface"""
 
         class WrappedTechnique(BaseBalancer):
-            def __init__(self):
+            def __init__(self, **kwargs):
                 super().__init__()
-                self.technique = technique_class()
+                self.technique = technique_class(**kwargs)
 
             def balance(self, X, y):
                 return self.technique.fit_resample(X, y)

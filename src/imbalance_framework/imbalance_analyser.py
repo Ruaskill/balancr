@@ -143,6 +143,7 @@ class BalancingFramework:
         technique_names: List[str],
         test_size: float = 0.2,
         random_state: int = 42,
+        technique_params: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Apply multiple balancing techniques to the dataset.
@@ -151,6 +152,7 @@ class BalancingFramework:
             technique_names: List of technique names to apply
             test_size: Proportion of dataset to use for testing
             random_state: Random seed for reproducibility
+            technique_params: Dictionary mapping technique names to their parameters
 
         Returns:
             Dictionary containing balanced datasets for each technique
@@ -179,8 +181,13 @@ class BalancingFramework:
                     f"Available techniques: {self.list_available_techniques()}"
                 )
 
-            # Apply technique
-            technique = technique_class()
+            # Get parameters for this technique
+            params = {}
+            if technique_params and technique_name in technique_params:
+                params = technique_params[technique_name]
+
+            # Apply technique with parameters
+            technique = technique_class(**params)
             X_balanced, y_balanced = technique.balance(X_train, y_train)
 
             # Store balanced data
