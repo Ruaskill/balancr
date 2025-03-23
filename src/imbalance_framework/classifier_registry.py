@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Dict, Type, Optional, List
 import importlib
 import inspect
 import logging
+import json
 from sklearn.base import BaseEstimator
 
 
@@ -30,11 +32,13 @@ class ClassifierRegistry:
         # Find all available classifiers when initialised
         self._discover_sklearn_classifiers()
 
+        self._load_custom_classifiers()
+
     def _discover_sklearn_classifiers(self) -> None:
         """Look through scikit-learn modules to find usable classifier classes"""
         for module_path in self.SKLEARN_MODULES:
             try:
-                # Try to import the module
+                # Try to import module
                 module = importlib.import_module(module_path)
 
                 # Get just the module name (e.g., 'ensemble' from 'sklearn.ensemble')
@@ -185,3 +189,63 @@ class ClassifierRegistry:
             )
 
         self.custom_classifiers[name] = classifier_class
+
+    def _load_custom_classifiers(self) -> None:
+        """Load registered custom classifiers from the custom classifiers directory."""
+        custom_dir = Path.home() / ".balancr" / "custom_classifiers"
+        if not custom_dir.exists():
+            return
+
+        metadata_file = custom_dir / "classifiers_metadata.json"
+        if not metadata_file.exists():
+            return
+
+        try:
+            with open(metadata_file, "r") as f:
+                metadata = json.load(f)
+
+            for classifier_name, info in metadata.items():
+                file_path = Path(info["file"])
+                class_name = info["class_name"]
+
+                if not file_path.exists():
+                    logging.warning(f"Custom classifier file not found: {file_path}")
+                    continue
+
+                try:
+                    # Import the module dynamically
+                    module_name = file_path.stem
+                    spec = importlib.util.spec_from_file_location(
+                        module_name, file_path
+                    )
+                    if spec is None or spec.loader is None:
+                        logging.warning(f"Could not load module from {file_path}")
+                        continue
+
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+
+                    # Find the specific class
+                    classifier_class = None
+                    for name, obj in inspect.getmembers(module, inspect.isclass):
+                        if (
+                            name == class_name
+                            and hasattr(obj, "fit")
+                            and hasattr(obj, "predict")
+                        ):
+                            classifier_class = obj
+                            break
+
+                    if classifier_class:
+                        self.custom_classifiers[classifier_name] = classifier_class
+                        logging.debug(f"Loaded custom classifier: {classifier_name}")
+                    else:
+                        logging.warning(f"Class {class_name} not found in {file_path}")
+
+                except Exception as e:
+                    logging.warning(
+                        f"Error loading custom classifier {classifier_name}: {e}"
+                    )
+
+        except Exception as e:
+            logging.warning(f"Error loading custom classifiers metadata: {e}")

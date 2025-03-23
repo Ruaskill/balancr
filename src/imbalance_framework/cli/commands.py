@@ -632,14 +632,6 @@ def list_available_classifiers(args):
 
     print("\nAvailable Classifiers:")
 
-    # Print sklearn classifiers by module
-    if "sklearn" in classifiers:
-        print("\nScikit-learn Classifiers:")
-        for module_name, clf_list in classifiers["sklearn"].items():
-            print(f"\n  {module_name.capitalize()}:")
-            for clf in sorted(clf_list):
-                print(f"    - {clf}")
-
     # Print custom classifiers if any
     if "custom" in classifiers and classifiers["custom"]:
         print("\nCustom Classifiers:")
@@ -648,6 +640,14 @@ def list_available_classifiers(args):
                 print(f"\n  {module_name.capitalize()}:")
                 for clf in sorted(clf_list):
                     print(f"    - {clf}")
+
+    # Print sklearn classifiers by module
+    if "sklearn" in classifiers:
+        print("\nScikit-learn Classifiers:")
+        for module_name, clf_list in classifiers["sklearn"].items():
+            print(f"\n  {module_name.capitalize()}:")
+            for clf in sorted(clf_list):
+                print(f"    - {clf}")
 
     return 0
 
@@ -695,6 +695,335 @@ def get_classifier_default_params(classifier_class):
         )
 
     return params
+
+
+def register_classifiers(args):
+    """
+    Handle the register-classifiers command.
+
+    This command allows users to register custom classifiers from
+    Python files or folders, or remove existing custom classifiers.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    try:
+        # Ensure framework is available
+        if ClassifierRegistry is None:
+            logging.error(
+                "Classifier registry not available. Please check installation."
+            )
+            return 1
+
+        # Handle removal operations
+        if args.remove or args.remove_all:
+            return _remove_classifiers(args)
+
+        registry = ClassifierRegistry()
+
+        # Track successfully registered classifiers
+        registered_classifiers = []
+
+        # Process file path
+        if args.file_path:
+            file_path = Path(args.file_path)
+
+            if not file_path.exists():
+                logging.error(f"File not found: {file_path}")
+                return 1
+
+            if not file_path.is_file() or file_path.suffix.lower() != ".py":
+                logging.error(f"Not a Python file: {file_path}")
+                return 1
+
+            # Register classifiers from the file
+            registered = _register_classifier_from_file(
+                registry, file_path, args.name, args.class_name, args.overwrite
+            )
+            registered_classifiers.extend(registered)
+
+        # Process folder path
+        elif args.folder_path:
+            folder_path = Path(args.folder_path)
+
+            if not folder_path.exists():
+                logging.error(f"Folder not found: {folder_path}")
+                return 1
+
+            if not folder_path.is_dir():
+                logging.error(f"Not a directory: {folder_path}")
+                return 1
+
+            # Register classifiers from all Python files in the folder
+            for py_file in folder_path.glob("*.py"):
+                registered = _register_classifier_from_file(
+                    registry,
+                    py_file,
+                    None,  # Don't use custom name for folder scanning
+                    None,  # Don't use class name for folder scanning
+                    args.overwrite,
+                )
+                registered_classifiers.extend(registered)
+
+        # Print summary
+        if registered_classifiers:
+            print("\nSuccessfully registered classifiers:")
+            for classifier in registered_classifiers:
+                print(f"  - {classifier}")
+
+            print("\nYou can now use these classifiers in comparisons. For example:")
+            print(f"  balancr select-classifiers {registered_classifiers[0]}")
+            return 0
+        else:
+            logging.warning("No valid classifiers found to register.")
+            return 1
+
+    except Exception as e:
+        logging.error(f"Error registering classifiers: {e}")
+        if args.verbose:
+            import traceback
+
+            traceback.print_exc()
+        return 1
+
+
+def _register_classifier_from_file(
+    registry, file_path, custom_name=None, class_name=None, overwrite=False
+):
+    """
+    Register classifier classes from a Python file.
+
+    Args:
+        registry: ClassifierRegistry instance
+        file_path: Path to the Python file
+        custom_name: Custom name to register the classifier under
+        class_name: Name of specific class to register
+        overwrite: Whether to overwrite existing classifiers
+
+    Returns:
+        list: Names of successfully registered classifiers
+    """
+    registered_classifiers = []
+
+    try:
+        # Create custom classifiers directory if it doesn't exist
+        custom_dir = Path.home() / ".balancr" / "custom_classifiers"
+        custom_dir.mkdir(parents=True, exist_ok=True)
+
+        # Import the module dynamically
+        module_name = file_path.stem
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            logging.error(f"Could not load module from {file_path}")
+            return registered_classifiers
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Ensure sklearn BaseEstimator is available
+        try:
+            from sklearn.base import BaseEstimator
+        except ImportError:
+            logging.error(
+                "scikit-learn is not available. Please install it using: pip install scikit-learn"
+            )
+            return registered_classifiers
+
+        # Find all classes that inherit from BaseEstimator and have fit/predict methods
+        classifier_classes = []
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                obj.__module__
+                == module_name  # Only consider classes defined in this module
+                and issubclass(obj, BaseEstimator)
+                and hasattr(obj, "fit")
+                and hasattr(obj, "predict")
+            ):
+                classifier_classes.append((name, obj))
+
+        # If no valid classes found
+        if not classifier_classes:
+            logging.warning(f"No valid classifier classes found in {file_path}")
+            logging.info(
+                "Classes must inherit from sklearn.base.BaseEstimator and implement fit and predict methods"
+            )
+            return registered_classifiers
+
+        # If class_name is specified, filter to just that class
+        if class_name:
+            classifier_classes = [
+                (name, cls) for name, cls in classifier_classes if name == class_name
+            ]
+            if not classifier_classes:
+                logging.error(
+                    f"Class '{class_name}' not found in {file_path} or doesn't meet classifier requirements"
+                )
+                return registered_classifiers
+
+        # If requesting a custom name but multiple classes found and no class_name specified
+        if custom_name and len(classifier_classes) > 1 and not class_name:
+            logging.error(
+                f"Multiple classifier classes found in {file_path}, but custom name provided. "
+                "Please specify which class to register with --class-name."
+            )
+            return registered_classifiers
+
+        # Register the classifiers
+        for name, cls in classifier_classes:
+            # If this is a specifically requested class with a custom name
+            if class_name and name == class_name and custom_name:
+                register_name = custom_name
+            else:
+                register_name = name
+
+            try:
+                # Check if classifier already exists
+                existing_classifiers = registry.list_available_classifiers()
+                flat_existing = []
+                for module_classifiers in existing_classifiers.get(
+                    "custom", {}
+                ).values():
+                    flat_existing.extend(module_classifiers)
+
+                if register_name in flat_existing and not overwrite:
+                    logging.warning(
+                        f"Classifier '{register_name}' already exists. "
+                        "Use --overwrite to replace it."
+                    )
+                    continue
+
+                # Register the classifier
+                registry.register_custom_classifier(register_name, cls)
+                registered_classifiers.append(register_name)
+                logging.info(f"Successfully registered classifier: {register_name}")
+
+            except Exception as e:
+                logging.error(f"Error registering classifier '{register_name}': {e}")
+
+        # For successfully registered classifiers, copy the file
+        if registered_classifiers:
+            # Generate a unique filename (in case multiple files have same name)
+            dest_file = custom_dir / f"{file_path.stem}_{hash(str(file_path))}.py"
+            shutil.copy2(file_path, dest_file)
+            logging.debug(f"Copied {file_path} to {dest_file}")
+
+            # Create a metadata file to map classifier names to files
+            metadata_file = custom_dir / "classifiers_metadata.json"
+            metadata = {}
+            if metadata_file.exists():
+                with open(metadata_file, "r") as f:
+                    metadata = json.load(f)
+
+            # Update metadata with new classifiers
+            class_mapping = {cls_name: cls_name for cls_name, _ in classifier_classes}
+            if class_name and custom_name:
+                class_mapping[custom_name] = class_name
+
+            for classifier_name in registered_classifiers:
+                original_class = class_mapping.get(classifier_name, classifier_name)
+                metadata[classifier_name] = {
+                    "file": str(dest_file),
+                    "class_name": original_class,
+                    "registered_at": datetime.now().isoformat(),
+                }
+
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+
+    return registered_classifiers
+
+
+def _remove_classifiers(args):
+    """
+    Remove custom classifiers as specified in the args.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    # Get path to custom classifiers directory
+    custom_dir = Path.home() / ".balancr" / "custom_classifiers"
+    metadata_file = custom_dir / "classifiers_metadata.json"
+
+    # Check if metadata file exists
+    if not metadata_file.exists():
+        logging.error("No custom classifiers have been registered.")
+        return 1
+
+    # Load metadata
+    with open(metadata_file, "r") as f:
+        metadata = json.load(f)
+
+    # If no custom classifiers
+    if not metadata:
+        logging.error("No custom classifiers have been registered.")
+        return 1
+
+    # Remove all custom classifiers
+    if args.remove_all:
+        logging.info("Removing all custom classifiers...")
+
+        # Remove all classifier files
+        file_paths = set(info["file"] for info in metadata.values())
+        for file_path in file_paths:
+            try:
+                Path(file_path).unlink(missing_ok=True)
+            except Exception as e:
+                logging.warning(f"Error removing file {file_path}: {e}")
+
+        # Clear metadata
+        metadata = {}
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        print("All custom classifiers have been removed.")
+        return 0
+
+    # Remove specific classifiers
+    removed_classifiers = []
+    for classifier_name in args.remove:
+        if classifier_name in metadata:
+            # Note the file path (we'll check if it's used by other classifiers)
+            file_path = metadata[classifier_name]["file"]
+
+            # Remove from metadata
+            del metadata[classifier_name]
+            removed_classifiers.append(classifier_name)
+
+            # Check if the file is still used by other classifiers
+            file_still_used = any(
+                info["file"] == file_path for info in metadata.values()
+            )
+
+            # If not used, remove the file
+            if not file_still_used:
+                try:
+                    Path(file_path).unlink(missing_ok=True)
+                except Exception as e:
+                    logging.warning(f"Error removing file {file_path}: {e}")
+        else:
+            logging.warning(f"Classifier '{classifier_name}' not found.")
+
+    # Save updated metadata
+    with open(metadata_file, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    if removed_classifiers:
+        print("\nRemoved classifiers:")
+        for classifier in removed_classifiers:
+            print(f"  - {classifier}")
+        return 0
+    else:
+        logging.error("No matching classifiers were found.")
+        return 1
 
 
 def configure_metrics(args):

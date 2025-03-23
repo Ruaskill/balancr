@@ -41,7 +41,8 @@ Getting Started:
   2. Preprocess data:               e.g. balancr preprocess --scale standard --handle-missing mean
   3. Select Techniques:             e.g. balancr select-techniques SMOTE ADASYN
   4. Register Custom Techniques:    e.g. balancr register-techniques my_technique.py
-  5. Select Classifier:             e.g. balancr select-classifier RandomForest
+  5. Select Classifiers:            e.g. balancr select-classifier RandomForest
+  6. Register Custom Classifiers:   e.g. balancr register-classifiers my_classifier.py
   6. Configure Metrics:             e.g. balancr configure-metrics --metrics precision recall --save-formats csv
   7. Configure Visualisations:      e.g. balancr configure-visualisations --types all --save-formats png pdf
   8. Configure Evaluation:          e.g. balancr configure-evaluation --test-size 0.3 --cross-validation 5
@@ -105,6 +106,7 @@ Full documentation available at: https://github.com/Ruaskill/balancr
     register_select_techniques_command(subparsers)
     register_register_techniques_command(subparsers)
     register_select_classifiers_command(subparsers)
+    register_register_classifiers_command(subparsers)
     register_configure_metrics_command(subparsers)
     register_configure_visualisations_command(subparsers)
     register_configure_evaluation_command(subparsers)
@@ -372,6 +374,100 @@ Examples:
     )
     
     parser.set_defaults(func=commands.select_classifier)
+
+
+def register_register_classifiers_command(subparsers):
+    """Register the register-classifiers command."""
+    parser = subparsers.add_parser(
+        "register-classifiers",
+        help="Register or manage custom classifiers",
+        description="Register custom classifiers from Python files or directories, or remove existing ones.",
+        epilog="""
+Examples:
+  # Register all classifier classes from a file
+  balancr register-classifiers my_classifier.py
+
+  # Register only a specific class from a file
+  balancr register-classifiers my_classifier.py --class-name "MyCustomClassifier"
+
+  # Register a specific class with a custom name
+  balancr register-classifiers my_classifier.py --class-name "MyCustomClassifier" --name "EnhancedRandomForest"
+
+  # Register all classifiers from all Python files in a directory
+  balancr register-classifiers --folder-path ./my_classifiers_folder
+
+  # Force overwrite if classifier already exists
+  balancr register-classifiers my_classifier.py --overwrite
+  
+  # Remove a specific custom classifier
+  balancr register-classifiers --remove MyCustomClassifier
+  
+  # Remove multiple custom classifiers
+  balancr register-classifiers --remove Classifier1 Classifier2
+  
+  # Remove all custom classifiers
+  balancr register-classifiers --remove-all
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
+    # Create main action group (file/folder vs removal)
+    action_group = parser.add_mutually_exclusive_group(required=True)
+    
+    # Add file path as a positional argument in the action group
+    action_group.add_argument(
+        "file_path",
+        type=str,
+        nargs="?",  # Make it optional
+        help="Path to the Python file containing the custom classifier(s)"
+    )
+    
+    # Add folder path as an option in the action group
+    action_group.add_argument(
+        "--folder-path",
+        "-fp",
+        type=str,
+        help="Path to a folder containing Python files with custom classifiers"
+    )
+    
+    # Add removal options to the action group
+    action_group.add_argument(
+        "--remove",
+        "-r",
+        nargs="+",
+        help="Names of custom classifiers to remove"
+    )
+    
+    action_group.add_argument(
+        "--remove-all",
+        "-ra",
+        action="store_true",
+        help="Remove all custom classifiers"
+    )
+    
+    # Options for registration (not in the mutually exclusive group)
+    parser.add_argument(
+        "--name",
+        "-n",
+        type=str,
+        help="Custom name to register the classifier under (requires --class-name when file contains multiple classifiers)"
+    )
+    
+    parser.add_argument(
+        "--class-name",
+        "-c",
+        type=str,
+        help="Name of the specific class to register (required when --name is used and multiple classes exist)"
+    )
+    
+    parser.add_argument(
+        "--overwrite",
+        "-o",
+        action="store_true",
+        help="Overwrite existing classifier with the same name if it exists"
+    )
+    
+    parser.set_defaults(func=commands.register_classifiers)
 
 
 def register_configure_metrics_command(subparsers):
