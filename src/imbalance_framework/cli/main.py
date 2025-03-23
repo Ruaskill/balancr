@@ -37,14 +37,15 @@ def create_parser():
         description=f"{balancr_ascii}\nA command-line tool for analysing and comparing techniques for handling imbalanced datasets.",
         epilog="""
 Getting Started:
-  1. Load your data:            e.g. balancr load-data your_file.csv -t target_column
-  2. Preprocess data:           e.g. balancr preprocess --scale standard --handle-missing mean
-  3. Select Techniques:         e.g. balancr select-techniques SMOTE ADASYN
-  4. Select Classifier          e.g. balancr select-classifier RandomForest
-  5. Configure Metrics          e.g. balancr configure-metrics --metrics precision recall --save-formats csv
-  6. Configure Visualisations   e.g. balancr configure-visualisations --types all --save-formats png pdf
-  7. Configure Evaluation       e.g. balancr configure-evaluation --test-size 0.3 --cross-validation 5
-  8. Run comparison!            e.g. balancr run
+  1. Load your data:                e.g. balancr load-data your_file.csv -t target_column
+  2. Preprocess data:               e.g. balancr preprocess --scale standard --handle-missing mean
+  3. Select Techniques:             e.g. balancr select-techniques SMOTE ADASYN
+  4. Register Custom Techniques:    e.g. balancr register-techniques my_technique.py
+  5. Select Classifier:             e.g. balancr select-classifier RandomForest
+  6. Configure Metrics:             e.g. balancr configure-metrics --metrics precision recall --save-formats csv
+  7. Configure Visualisations:      e.g. balancr configure-visualisations --types all --save-formats png pdf
+  8. Configure Evaluation:          e.g. balancr configure-evaluation --test-size 0.3 --cross-validation 5
+  9. Run comparison!                e.g. balancr run
 
   You can also make more efficient and direct configurations via: ~/.balancr/config.json
         
@@ -102,6 +103,7 @@ Full documentation available at: https://github.com/Ruaskill/balancr
     register_load_data_command(subparsers)
     register_preprocess_command(subparsers)
     register_select_techniques_command(subparsers)
+    register_register_techniques_command(subparsers)
     register_select_classifiers_command(subparsers)
     register_configure_metrics_command(subparsers)
     register_configure_visualisations_command(subparsers)
@@ -227,6 +229,100 @@ Examples:
         help="List all available balancing techniques",
     )
     parser.set_defaults(func=commands.select_techniques)
+
+
+def register_register_techniques_command(subparsers):
+    """Register the register-techniques command."""
+    parser = subparsers.add_parser(
+        "register-techniques",
+        help="Register or manage custom balancing techniques",
+        description="Register custom balancing techniques from Python files or directories, or remove existing ones.",
+        epilog="""
+Examples:
+  # Register all technique classes from a file
+  balancr register-techniques my_technique.py
+
+  # Register only a specific class from a file
+  balancr register-techniques my_technique.py --class-name "MyCustomTechnique"
+
+  # Register a specific class with a custom name
+  balancr register-techniques my_technique.py --class-name "MyCustomTechnique" --name "ImprovedSMOTE"
+
+  # Register all techniques from all Python files in a directory
+  balancr register-techniques --folder-path ./my_techniques_folder
+
+  # Force overwrite if technique already exists
+  balancr register-techniques my_technique.py --overwrite
+  
+  # Remove a specific custom technique
+  balancr register-techniques --remove MyCustomTechnique
+  
+  # Remove multiple custom techniques
+  balancr register-techniques --remove Technique1 Technique2
+  
+  # Remove all custom techniques
+  balancr register-techniques --remove-all
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
+    # Create main action group (file/folder vs removal)
+    action_group = parser.add_mutually_exclusive_group(required=True)
+    
+    # Add file path as a positional argument in the action group
+    action_group.add_argument(
+        "file_path",
+        type=str,
+        nargs="?",  # Make it optional
+        help="Path to the Python file containing the custom technique(s)"
+    )
+    
+    # Add folder path as an option in the action group
+    action_group.add_argument(
+        "--folder-path",
+        "-fp",
+        type=str,
+        help="Path to a folder containing Python files with custom techniques"
+    )
+    
+    # Add removal options to the action group
+    action_group.add_argument(
+        "--remove",
+        "-r",
+        nargs="+",
+        help="Names of custom techniques to remove"
+    )
+    
+    action_group.add_argument(
+        "--remove-all",
+        "-ra",
+        action="store_true",
+        help="Remove all custom techniques"
+    )
+    
+    # Options for registration (not in the mutually exclusive group)
+    parser.add_argument(
+        "--name",
+        "-n",
+        type=str,
+        help="Custom name to register the technique under (requires --class-name when file contains multiple techniques)"
+    )
+    
+    parser.add_argument(
+        "--class-name",
+        "-c",
+        type=str,
+        help="Name of the specific class to register (required when --name is used and multiple classes exist)"
+    )
+    
+    parser.add_argument(
+        "--overwrite",
+        "-o",
+        action="store_true",
+        help="Overwrite existing technique with the same name if it exists"
+    )
+    
+    parser.set_defaults(func=commands.register_techniques)
 
 
 def register_select_classifiers_command(subparsers):

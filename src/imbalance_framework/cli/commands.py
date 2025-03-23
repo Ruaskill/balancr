@@ -5,6 +5,9 @@ This module contains the implementation of all command functions that are
 registered in main.py
 """
 
+import shutil
+from datetime import datetime
+import importlib
 import logging
 import json
 import inspect
@@ -14,6 +17,7 @@ from pathlib import Path
 from evaluation.visualisation import plot_comparison_results
 
 from . import config
+from imbalance_framework.base import BaseBalancer
 
 # Will be used to interact with the core balancing framework
 try:
@@ -199,6 +203,323 @@ def select_techniques(args):
 
     except Exception as e:
         logging.error(f"Failed to select techniques: {e}")
+        return 1
+
+
+def register_techniques(args):
+    """
+    Handle the register-techniques command.
+
+    This command allows users to register custom balancing techniques from
+    Python files or folders for use in comparisons.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    try:
+        # Handle removal operations
+        if args.remove or args.remove_all:
+            return _remove_techniques(args)
+
+        # Ensure framework is available
+        if TechniqueRegistry is None:
+            logging.error(
+                "Technique registry not available. Please check installation."
+            )
+            return 1
+
+        registry = TechniqueRegistry()
+
+        # Track successfully registered techniques
+        registered_techniques = []
+
+        # Process file path
+        if args.file_path:
+            file_path = Path(args.file_path)
+
+            if not file_path.exists():
+                logging.error(f"File not found: {file_path}")
+                return 1
+
+            if not file_path.is_file() or file_path.suffix.lower() != ".py":
+                logging.error(f"Not a Python file: {file_path}")
+                return 1
+
+            # Register techniques from the file
+            registered = _register_from_file(
+                registry, file_path, args.name, args.class_name, args.overwrite
+            )
+            registered_techniques.extend(registered)
+
+        # Process folder path
+        elif args.folder_path:
+            folder_path = Path(args.folder_path)
+
+            if not folder_path.exists():
+                logging.error(f"Folder not found: {folder_path}")
+                return 1
+
+            if not folder_path.is_dir():
+                logging.error(f"Not a directory: {folder_path}")
+                return 1
+
+            # Register techniques from all Python files in the folder
+            for py_file in folder_path.glob("*.py"):
+                registered = _register_from_file(
+                    registry,
+                    py_file,
+                    None,  # Don't use custom name for folder scanning
+                    None,  # Don't use class name for folder scanning
+                    args.overwrite,
+                )
+                registered_techniques.extend(registered)
+
+        # Print summary
+        if registered_techniques:
+            print("\nSuccessfully registered techniques:")
+            for technique in registered_techniques:
+                print(f"  - {technique}")
+
+            # Suggestion for next steps
+            print("\nYou can now use these techniques in comparisons. For example:")
+            print(f"  balancr select-techniques {registered_techniques[0]}")
+            return 0
+        else:
+            logging.warning("No valid balancing techniques found to register.")
+            return 1
+
+    except Exception as e:
+        logging.error(f"Error registering techniques: {e}")
+        if args.verbose:
+            import traceback
+
+            traceback.print_exc()
+        return 1
+
+
+def _register_from_file(
+    registry, file_path, custom_name=None, class_name=None, overwrite=False
+):
+    """
+    Register technique classes from a Python file and copy to custom techniques directory.
+
+    Args:
+        registry: TechniqueRegistry instance
+        file_path: Path to the Python file
+        custom_name: Custom name to register the technique under
+        class_name: Name of specific class to register
+        overwrite: Whether to overwrite existing techniques
+
+    Returns:
+        list: Names of successfully registered techniques
+    """
+    registered_techniques = []
+
+    try:
+        # Create custom techniques directory if it doesn't exist
+        custom_dir = Path.home() / ".balancr" / "custom_techniques"
+        custom_dir.mkdir(parents=True, exist_ok=True)
+
+        # Import the module dynamically
+        module_name = file_path.stem
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            logging.error(f"Could not load module from {file_path}")
+            return registered_techniques
+
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        # Find all classes that inherit from BaseBalancer
+        technique_classes = []
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                obj.__module__
+                == module_name  # Only consider classes defined in this module
+                and issubclass(obj, BaseBalancer)
+                and obj is not BaseBalancer
+            ):  # Exclude the base class itself
+                technique_classes.append((name, obj))
+
+        # If no valid classes found
+        if not technique_classes:
+            logging.warning(f"No valid technique classes found in {file_path}")
+            logging.info(
+                "Classes must inherit from imbalance_framework.base.BaseBalancer"
+            )
+            return registered_techniques
+
+        # If class_name is specified, filter to just that class
+        if class_name:
+            technique_classes = [
+                (name, cls) for name, cls in technique_classes if name == class_name
+            ]
+            if not technique_classes:
+                logging.error(
+                    f"Class '{class_name}' not found in {file_path} or doesn't inherit from BaseBalancer"
+                )
+                return registered_techniques
+
+        # If requesting a custom name but multiple classes found and no class_name specified
+        if custom_name and len(technique_classes) > 1 and not class_name:
+            logging.error(
+                f"Multiple technique classes found in {file_path}, but custom name provided. "
+                "Please specify which class to register with --class-name."
+            )
+            return registered_techniques
+
+        # Register techniques
+        for name, cls in technique_classes:
+            # If this is a specifically requested class with a custom name
+            if class_name and name == class_name and custom_name:
+                register_name = custom_name
+            else:
+                register_name = name
+
+            try:
+                # Check if technique already exists
+                existing_techniques = registry.list_available_techniques()
+                if (
+                    register_name in existing_techniques.get("custom", [])
+                    and not overwrite
+                ):
+                    logging.warning(
+                        f"Technique '{register_name}' already exists. "
+                        "Use --overwrite to replace it."
+                    )
+                    continue
+
+                # Register the technique
+                registry.register_custom_technique(register_name, cls)
+                registered_techniques.append(register_name)
+                logging.info(f"Successfully registered technique: {register_name}")
+
+            except Exception as e:
+                logging.error(f"Error registering technique '{register_name}': {e}")
+
+        # For successfully registered techniques, copy the file
+        if registered_techniques:
+            # Generate a unique filename (in case multiple files have same name)
+            dest_file = custom_dir / f"{file_path.stem}_{hash(str(file_path))}.py"
+            shutil.copy2(file_path, dest_file)
+            logging.debug(f"Copied {file_path} to {dest_file}")
+
+            # Create a metadata file to map technique names to files
+            metadata_file = custom_dir / "techniques_metadata.json"
+            metadata = {}
+            if metadata_file.exists():
+                with open(metadata_file, "r") as f:
+                    metadata = json.load(f)
+
+            # Update metadata with new techniques
+            class_mapping = {cls_name: cls_name for cls_name, _ in technique_classes}
+            if class_name and custom_name:
+                class_mapping[custom_name] = class_name
+
+            for technique_name in registered_techniques:
+                original_class = class_mapping.get(technique_name, technique_name)
+                metadata[technique_name] = {
+                    "file": str(dest_file),
+                    "class_name": original_class,
+                    "registered_at": datetime.now().isoformat(),
+                }
+
+            with open(metadata_file, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+    except Exception as e:
+        logging.error(f"Error processing file {file_path}: {e}")
+
+    return registered_techniques
+
+
+def _remove_techniques(args):
+    """
+    Remove custom techniques as specified in the args.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    # Get path to custom techniques directory
+    custom_dir = Path.home() / ".balancr" / "custom_techniques"
+    metadata_file = custom_dir / "techniques_metadata.json"
+
+    # Check if metadata file exists
+    if not metadata_file.exists():
+        logging.error("No custom techniques have been registered.")
+        return 1
+
+    # Load metadata
+    with open(metadata_file, "r") as f:
+        metadata = json.load(f)
+
+    # If no custom techniques
+    if not metadata:
+        logging.error("No custom techniques have been registered.")
+        return 1
+
+    # Remove all custom techniques
+    if args.remove_all:
+        logging.info("Removing all custom techniques...")
+
+        # Remove all technique files
+        file_paths = set(info["file"] for info in metadata.values())
+        for file_path in file_paths:
+            try:
+                Path(file_path).unlink(missing_ok=True)
+            except Exception as e:
+                logging.warning(f"Error removing file {file_path}: {e}")
+
+        # Clear metadata
+        metadata = {}
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        print("All custom techniques have been removed.")
+        return 0
+
+    # Remove specific techniques
+    removed_techniques = []
+    for technique_name in args.remove:
+        if technique_name in metadata:
+            # Note the file path (we'll check if it's used by other techniques)
+            file_path = metadata[technique_name]["file"]
+
+            # Remove from metadata
+            del metadata[technique_name]
+            removed_techniques.append(technique_name)
+
+            # Check if the file is still used by other techniques
+            file_still_used = any(
+                info["file"] == file_path for info in metadata.values()
+            )
+
+            # If not used, remove the file
+            if not file_still_used:
+                try:
+                    Path(file_path).unlink(missing_ok=True)
+                except Exception as e:
+                    logging.warning(f"Error removing file {file_path}: {e}")
+        else:
+            logging.warning(f"Technique '{technique_name}' not found.")
+
+    # Save updated metadata
+    with open(metadata_file, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    if removed_techniques:
+        print("\nRemoved techniques:")
+        for technique in removed_techniques:
+            print(f"  - {technique}")
+        return 0
+    else:
+        logging.error("No matching techniques were found.")
         return 1
 
 
@@ -479,7 +800,7 @@ def configure_evaluation(args):
             "cross_validation": args.cross_validation,
             "random_state": args.random_state,
             "learning_curve_folds": args.learning_curve_folds,
-            "learning_curve_points": args.learning_curve_points
+            "learning_curve_points": args.learning_curve_points,
         }
     }
 
@@ -600,7 +921,7 @@ def run_comparison(args):
         framework.generate_balanced_data(
             folder_path=str(balanced_dir),
             techniques=current_config["balancers"],
-            file_format="csv"
+            file_format="csv",
         )
 
         # Train classifiers
@@ -705,7 +1026,10 @@ def run_comparison(args):
                         display=display_visualisations,
                     )
 
-                if "learning_curves" in vis_types_to_generate or "all" in visualisations:
+                if (
+                    "learning_curves" in vis_types_to_generate
+                    or "all" in visualisations
+                ):
                     learning_curve_path = (
                         std_metrics_dir / f"learning_curves.{format_type}"
                     )
@@ -724,7 +1048,7 @@ def run_comparison(args):
                         train_sizes=train_sizes,
                         n_folds=learning_curve_folds,
                         save_path=str(learning_curve_path),
-                        display=display_visualisations
+                        display=display_visualisations,
                     )
 
             # If cross-validation is enabled, create CV metrics directory and save results
@@ -784,8 +1108,12 @@ def run_comparison(args):
                         )
 
                         # Get learning curve parameters from config
-                        learning_curve_points = eval_config.get("learning_curve_points", 10)
-                        learning_curve_folds = eval_config.get("learning_curve_folds", 5)
+                        learning_curve_points = eval_config.get(
+                            "learning_curve_points", 10
+                        )
+                        learning_curve_folds = eval_config.get(
+                            "learning_curve_folds", 5
+                        )
                         train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
 
                         framework.generate_learning_curves(
@@ -793,7 +1121,7 @@ def run_comparison(args):
                             train_sizes=train_sizes,
                             n_folds=learning_curve_folds,
                             save_path=str(cv_learning_curve_path),
-                            display=display_visualisations
+                            display=display_visualisations,
                         )
 
         # Print summary of results
