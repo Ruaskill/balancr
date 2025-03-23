@@ -37,6 +37,53 @@ def framework():
 
 
 @pytest.fixture
+def mock_classifier():
+    """Create a mock classifier that returns predictable results"""
+    mock_clf = MagicMock()
+    mock_clf.predict.return_value = np.array([0, 1, 0, 1])
+    mock_clf.predict_proba.return_value = np.array(
+        [[0.8, 0.2], [0.3, 0.7], [0.9, 0.1], [0.2, 0.8]]
+    )
+
+    return mock_clf
+
+
+@pytest.fixture
+def framework_with_balanced_data(mock_classifier):
+    """Create a framework instance with mock balanced datasets"""
+    framework = BalancingFramework()
+
+    # Test data
+    framework.X_test = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+    framework.y_test = np.array([0, 1, 0, 1])
+
+    # Mock balanced datasets
+    framework.current_balanced_datasets = {
+        "SMOTE": {
+            "X_balanced": np.array([[1, 2], [3, 4], [5, 6], [7, 8]]),
+            "y_balanced": np.array([0, 1, 0, 1]),
+        },
+        "RandomUnderSampler": {
+            "X_balanced": np.array([[1, 2], [7, 8]]),
+            "y_balanced": np.array([0, 1]),
+        },
+    }
+
+    # Mock classifier registry
+    framework.classifier_registry = MagicMock()
+
+    # Mock classifier class that returns our mock classifier
+    mock_classifier_class = MagicMock()
+    mock_classifier_class.return_value = mock_classifier
+
+    framework.classifier_registry.get_classifier_class.return_value = (
+        mock_classifier_class
+    )
+
+    return framework
+
+
+@pytest.fixture
 def mock_registry(monkeypatch):
     """Create a mock registry with test techniques"""
     mock = MagicMock()
@@ -49,6 +96,203 @@ def mock_registry(monkeypatch):
         "imbalance_framework.technique_registry.TechniqueRegistry", lambda: mock
     )
     return mock
+
+
+def test_train_classifiers_no_balanced_data():
+    """Test train_classifiers with no balanced datasets"""
+    framework = BalancingFramework()
+
+    with pytest.raises(ValueError, match="No balanced datasets available"):
+        framework.train_classifiers()
+
+
+def test_train_classifiers_no_test_data(framework_with_balanced_data):
+    """Test train_classifiers with no test data"""
+    framework = framework_with_balanced_data
+    framework.X_test = None
+    framework.y_test = None
+
+    with pytest.raises(ValueError, match="Test data not found"):
+        framework.train_classifiers()
+
+
+@patch("imbalance_framework.imbalance_analyser.get_metrics")
+def test_train_classifiers_default_classifier(
+    mock_get_metrics, framework_with_balanced_data
+):
+    """Test train_classifiers with default classifier"""
+    framework = framework_with_balanced_data
+
+    # Mock the get_metrics function
+    mock_get_metrics.return_value = {
+        "accuracy": 0.75,
+        "precision": 0.8,
+        "recall": 0.7,
+        "f1": 0.75,
+    }
+
+    # Call the function with default parameters
+    results = framework.train_classifiers()
+
+    # Check that results have the expected structure
+    assert "RandomForestClassifier" in results
+    assert "SMOTE" in results["RandomForestClassifier"]
+    assert "RandomUnderSampler" in results["RandomForestClassifier"]
+    assert "standard_metrics" in results["RandomForestClassifier"]["SMOTE"]
+
+    # Check that the classifier registry was called correctly
+    framework.classifier_registry.get_classifier_class.assert_called_with(
+        "RandomForestClassifier"
+    )
+
+    # Check that get_metrics was called for each technique
+    assert mock_get_metrics.call_count == 2
+
+
+@patch("imbalance_framework.imbalance_analyser.get_metrics")
+@patch("imbalance_framework.imbalance_analyser.get_cv_scores")
+def test_train_classifiers_with_cv(
+    mock_get_cv_scores, mock_get_metrics, framework_with_balanced_data
+):
+    """Test train_classifiers with cross-validation enabled"""
+    framework = framework_with_balanced_data
+
+    # Mock metric functions
+    mock_get_metrics.return_value = {
+        "accuracy": 0.75,
+        "precision": 0.8,
+        "recall": 0.7,
+        "f1": 0.75,
+    }
+
+    mock_get_cv_scores.return_value = {
+        "cv_accuracy_mean": 0.73,
+        "cv_accuracy_std": 0.05,
+        "cv_precision_mean": 0.78,
+        "cv_precision_std": 0.07,
+    }
+
+    # Call function with CV enabled
+    results = framework.train_classifiers(enable_cv=True, cv_folds=3)
+
+    # Check that CV metrics are included
+    assert "cv_metrics" in results["RandomForestClassifier"]["SMOTE"]
+    assert "cv_metrics" in results["RandomForestClassifier"]["RandomUnderSampler"]
+
+    # Check that get_cv_scores was called with the right parameters
+    mock_get_cv_scores.assert_called_with(
+        framework.classifier_registry.get_classifier_class().return_value,
+        framework.current_balanced_datasets["RandomUnderSampler"]["X_balanced"],
+        framework.current_balanced_datasets["RandomUnderSampler"]["y_balanced"],
+        n_folds=3,
+    )
+
+
+@patch("imbalance_framework.imbalance_analyser.get_metrics")
+def test_train_classifiers_custom_classifiers(
+    mock_get_metrics, framework_with_balanced_data
+):
+    """Test train_classifiers with custom classifier configurations"""
+    framework = framework_with_balanced_data
+
+    # Create two separate mock classifiers
+    mock_rf = MagicMock()
+    mock_lr = MagicMock()
+
+    # Update the side_effect to use a function that will return different mocks
+    def get_classifier_by_name(name):
+        if name == "RandomForestClassifier":
+            return lambda **kwargs: mock_rf
+        elif name == "LogisticRegression":
+            return lambda **kwargs: mock_lr
+        else:
+            return None
+
+    framework.classifier_registry.get_classifier_class.side_effect = (
+        get_classifier_by_name
+    )
+
+    # Mock get_metrics
+    mock_get_metrics.return_value = {
+        "accuracy": 0.75,
+        "precision": 0.8,
+        "recall": 0.7,
+        "f1": 0.75,
+    }
+
+    # Define custom classifiers
+    classifier_configs = {
+        "RandomForestClassifier": {"n_estimators": 100, "random_state": 42},
+        "LogisticRegression": {"C": 1.0, "random_state": 42},
+        "NonExistentClassifier": {"param": "value"},
+    }
+
+    # Call the function with custom classifiers
+    results = framework.train_classifiers(classifier_configs=classifier_configs)
+
+    assert "RandomForestClassifier" in results
+    assert "LogisticRegression" in results
+    assert "NonExistentClassifier" not in results
+
+    # Verify that both mocks were used
+    assert mock_rf.fit.called
+    assert mock_lr.fit.called
+
+    # Check that both SMOTE and RandomUnderSampler were processed for each classifier
+    techniques = results["RandomForestClassifier"].keys()
+    assert "SMOTE" in techniques
+    assert "RandomUnderSampler" in techniques
+
+    techniques = results["LogisticRegression"].keys()
+    assert "SMOTE" in techniques
+    assert "RandomUnderSampler" in techniques
+
+
+@patch("imbalance_framework.imbalance_analyser.get_metrics")
+@patch("logging.error")
+def test_train_classifiers_with_error(
+    mock_logging_error, mock_get_metrics, framework_with_balanced_data
+):
+    """Test train_classifiers handling of exceptions during training"""
+    framework = framework_with_balanced_data
+
+    # Make the classifier raise an exception for one technique
+    framework.classifier_registry.get_classifier_class().return_value.fit.side_effect = [
+        Exception("Training error"),
+        None,
+    ]
+
+    # Mock get_metrics for the successful technique
+    mock_get_metrics.return_value = {
+        "accuracy": 0.75,
+        "precision": 0.8,
+        "recall": 0.7,
+        "f1": 0.75,
+    }
+
+    results = framework.train_classifiers()
+
+    # Check that only the successful technique is in the results
+    assert "RandomForestClassifier" in results
+    assert len(results["RandomForestClassifier"]) == 1
+    assert "RandomUnderSampler" in results["RandomForestClassifier"]
+    assert "SMOTE" not in results["RandomForestClassifier"]
+
+    # Check that the error was logged
+    mock_logging_error.assert_called_once()
+    assert "Training error" in mock_logging_error.call_args[0][0]
+
+
+def test_train_classifiers_no_classifiers_found(framework_with_balanced_data):
+    """Test train_classifiers when no valid classifiers are found"""
+    framework = framework_with_balanced_data
+
+    # Make the classifier registry return None for all classifiers
+    framework.classifier_registry.get_classifier_class.return_value = None
+
+    results = framework.train_classifiers()
+
+    assert results == {}
 
 
 def test_framework_initialization(framework):
@@ -148,12 +392,42 @@ def test_compare_techniques(framework):
     framework.X = X
     framework.y = y
 
-    results = framework.apply_balancing_techniques(technique_names=["SMOTE", "RandomUnderSampler"])
+    results = framework.apply_balancing_techniques(
+        technique_names=["SMOTE", "RandomUnderSampler"]
+    )
 
     assert isinstance(results, dict)
     assert len(results) == 2
     assert "SMOTE" in results
     assert "RandomUnderSampler" in results
+
+
+def test_apply_balancing_techniques_invalid_technique(framework_with_balanced_data):
+    """Test apply_balancing_techniques with an invalid technique name"""
+    framework = framework_with_balanced_data
+
+    # Test data
+    framework.X = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+    framework.y = np.array([0, 1, 0, 1])
+
+    # Configure technique registry to return None for an invalid technique
+    framework.technique_registry = MagicMock()
+    framework.technique_registry.get_technique_class.return_value = None
+    framework.list_available_techniques = MagicMock(
+        return_value={"custom": [], "imblearn": ["SMOTE", "RandomUnderSampler"]}
+    )
+
+    # Test with invalid technique name
+    with pytest.raises(ValueError) as excinfo:
+        framework.apply_balancing_techniques(["InvalidTechnique"])
+
+    # Verify the error message
+    error_message = str(excinfo.value)
+    assert "Technique 'InvalidTechnique' not found" in error_message
+    assert "Available techniques" in error_message
+
+    # Verify list_available_techniques was called
+    framework.list_available_techniques.assert_called_once()
 
 
 def test_save_results_no_results(framework):
@@ -251,7 +525,9 @@ def test_generate_learning_curves(framework, tmp_path):
     framework.current_balanced_datasets = {"SMOTE": {"X_balanced": X, "y_balanced": y}}
 
     learning_curve_path = tmp_path / "learning_curve.png"
-    framework.generate_learning_curves(classifier_name="RandomForestClassifier", save_path=learning_curve_path)
+    framework.generate_learning_curves(
+        classifier_name="RandomForestClassifier", save_path=learning_curve_path
+    )
     assert learning_curve_path.exists()
 
 
