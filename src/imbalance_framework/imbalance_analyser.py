@@ -1,14 +1,18 @@
 from typing import Dict, List, Optional, Union, Any
 import os
+import logging
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 from .technique_registry import TechniqueRegistry
 from data.loader import DataLoader
+from .classifier_registry import ClassifierRegistry
 from data.preprocessor import DataPreprocessor
 from evaluation.metrics import (
     get_metrics,
+    get_cv_scores,
     get_learning_curve_data_multiple_techniques,
 )
 from evaluation.visualisation import (
@@ -21,16 +25,19 @@ from evaluation.visualisation import (
 
 class BalancingFramework:
     """
-    A unified framework for analyzing and comparing different techniques
+    A unified framework for analysing and comparing different techniques
     for handling imbalanced data.
     """
 
     def __init__(self):
-        """Initialize the framework with core components."""
-        self.registry = TechniqueRegistry()
+        """Initialise the framework with core components."""
+        self.technique_registry = TechniqueRegistry()
         self.preprocessor = DataPreprocessor()
+        self.classifier_registry = ClassifierRegistry()
         self.X = None
         self.y = None
+        self.X_test = None
+        self.y_test = None
         self.results = {}
         self.current_data_info = {}
         self.current_balanced_datasets = {}
@@ -53,6 +60,13 @@ class BalancingFramework:
         """
         # Load data
         self.X, self.y = DataLoader.load_data(file_path, target_column, feature_columns)
+
+        if feature_columns is None:
+            # Need to re-determine what columns were actually used
+            import pandas as pd
+
+            data = pd.read_csv(file_path)  # Re-read the data
+            feature_columns = [col for col in data.columns if col != target_column]
 
         # Store data info
         self.current_data_info = {
@@ -94,10 +108,9 @@ class BalancingFramework:
             self.X, self.y, handle_missing=handle_missing, scale=scale, encode=encode
         )
 
-    def inspect_class_distribution(self,
-                                   save_path: Optional[str] = None,
-                                   display: bool = False
-                                   ) -> Dict[Any, int]:
+    def inspect_class_distribution(
+        self, save_path: Optional[str] = None, display: bool = False
+    ) -> Dict[Any, int]:
         """
         Inspect the distribution of classes in the target variable.
 
@@ -112,35 +125,35 @@ class BalancingFramework:
 
         distribution = self._get_class_distribution()
 
-        plot_class_distribution(distribution,
-                                title="Imbalanced Dataset Class Comparison",
-                                save_path=save_path,
-                                display=display)
+        plot_class_distribution(
+            distribution,
+            title="Imbalanced Dataset Class Comparison",
+            save_path=save_path,
+            display=display,
+        )
 
         return distribution
 
     def list_available_techniques(self) -> Dict[str, List[str]]:
         """List all available balancing techniques."""
-        return self.registry.list_available_techniques()
+        return self.technique_registry.list_available_techniques()
 
-    def compare_techniques(
+    def apply_balancing_techniques(
         self,
         technique_names: List[str],
         test_size: float = 0.2,
         random_state: int = 42,
-        plot_results: bool = True,
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, Any]]:
         """
-        Compare multiple balancing techniques using various metrics.
+        Apply multiple balancing techniques to the dataset.
 
         Args:
-            technique_names: List of technique names to compare
+            technique_names: List of technique names to apply
             test_size: Proportion of dataset to use for testing
             random_state: Random seed for reproducibility
-            plot_results: Whether to visualize the comparison results
 
         Returns:
-            Dictionary containing results for each technique
+            Dictionary containing balanced datasets for each technique
         """
         if self.X is None or self.y is None:
             raise ValueError("No data loaded. Call load_data() first.")
@@ -150,10 +163,16 @@ class BalancingFramework:
             self.X, self.y, test_size=test_size, random_state=random_state
         )
 
-        results = {}
+        # Store test data for later evaluation
+        self.X_test = X_test
+        self.y_test = y_test
+
+        balanced_datasets = {}
         for technique_name in technique_names:
             # Get technique
-            technique_class = self.registry.get_technique_class(technique_name)
+            technique_class = self.technique_registry.get_technique_class(
+                technique_name
+            )
             if technique_class is None:
                 raise ValueError(
                     f"Technique '{technique_name}' not found. "
@@ -164,20 +183,110 @@ class BalancingFramework:
             technique = technique_class()
             X_balanced, y_balanced = technique.balance(X_train, y_train)
 
-            # Store balanced data for later export
-            self.current_balanced_datasets[technique_name] = {
+            # Store balanced data
+            balanced_datasets[technique_name] = {
                 "X_balanced": X_balanced,
                 "y_balanced": y_balanced,
             }
 
-            # Calculate metrics
-            metrics = get_metrics(X_balanced, y_balanced, X_test, y_test)
-            results[technique_name] = metrics
+        # Update current balanced datasets
+        self.current_balanced_datasets = balanced_datasets
 
+        return balanced_datasets
+
+    def train_classifiers(
+        self,
+        classifier_configs: Dict[str, Dict[str, Any]] = None,
+        enable_cv: bool = False,
+        cv_folds: int = 5,
+    ) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """
+        Train classifiers on balanced datasets and evaluate their performance.
+
+        Args:
+            classifier_configs: Dictionary mapping classifier names to their parameters
+                               If None, uses default RandomForestClassifier
+            plot_results: Whether to visualise the comparison results
+            enable_cv: Whether to perform cross-validation evaluation
+            cv_folds: Number of cross-validation folds (if enabled)
+
+        Returns:
+            Dictionary mapping classifier names to technique results
+        """
+        if not self.current_balanced_datasets:
+            raise ValueError(
+                "No balanced datasets available. Run apply_balancing_techniques first."
+            )
+
+        if self.X_test is None or self.y_test is None:
+            raise ValueError(
+                "Test data not found. Run apply_balancing_techniques first."
+            )
+
+        # Default classifier if none provided
+        if classifier_configs is None:
+            classifier_configs = {"RandomForestClassifier": {"random_state": 42}}
+
+        # Initialise results dictionary
+        results = {}
+
+        # For each classifier
+        for clf_name, clf_params in classifier_configs.items():
+            # Get classifier class from registry
+            clf_class = self.classifier_registry.get_classifier_class(clf_name)
+
+            if clf_class is None:
+                logging.warning(
+                    f"Classifier '{clf_name}' not found in registry. Skipping."
+                )
+                continue
+
+            classifier_results = {}
+
+            # For each balancing technique
+            for technique_name, balanced_data in self.current_balanced_datasets.items():
+                X_balanced = balanced_data["X_balanced"]
+                y_balanced = balanced_data["y_balanced"]
+
+                try:
+                    # Create classifier instance with parameters
+                    clf_instance = clf_class(**clf_params)
+
+                    # Train the classifier
+                    clf_instance.fit(X_balanced, y_balanced)
+
+                    # Initialise metrics for this technique
+                    technique_metrics = {
+                        "standard_metrics": get_metrics(
+                            clf_instance,
+                            self.X_test,
+                            self.y_test,
+                        )
+                    }
+
+                    # Add cross-validation metrics if enabled
+                    if enable_cv:
+                        technique_metrics["cv_metrics"] = get_cv_scores(
+                            clf_class(**clf_params),
+                            X_balanced,
+                            y_balanced,
+                            n_folds=cv_folds,
+                        )
+
+                    classifier_results[technique_name] = technique_metrics
+
+                except Exception as e:
+                    logging.error(
+                        f"Error training classifier '{clf_name}' with technique '{technique_name}': {str(e)}"
+                    )
+                    continue
+
+            # Only add classifier results if at least one technique was successful
+            if classifier_results:
+                results[clf_name] = classifier_results
+
+        # Update the overall results
         self.results = results
-
-        if plot_results:
-            plot_comparison_results(results)
 
         return results
 
@@ -193,7 +302,7 @@ class BalancingFramework:
         Args:
             file_path: Path to save the results
             file_type: Type of file ('csv' or 'json')
-            include_plots: Whether to save visualization plots
+            include_plots: Whether to save visualisation plots
         """
         if not self.results:
             raise ValueError("No results to save. Run compare_techniques() first.")
@@ -212,6 +321,52 @@ class BalancingFramework:
         if include_plots:
             plot_path = file_path.parent / f"{file_path.stem}_plots.png"
             plot_comparison_results(self.results, save_path=plot_path)
+
+    def save_classifier_results(
+        self,
+        file_path: Union[str, Path],
+        classifier_name: str,
+        metric_type: str = "standard_metrics",
+        file_type: str = "csv",
+    ) -> None:
+        """
+        Save results for a specific classifier and metric type to a file.
+
+        Args:
+            file_path: Path to save the results
+            classifier_name: Name of the classifier to extract results for
+            metric_type: Type of metrics to save ('standard_metrics' or 'cv_metrics')
+            file_type: Type of file ('csv' or 'json')
+        """
+        if not self.results:
+            raise ValueError("No results to save. Run train_classifiers() first.")
+
+        if classifier_name not in self.results:
+            raise ValueError(f"Classifier '{classifier_name}' not found in results.")
+
+        file_path = Path(file_path)
+
+        # Extract results for this classifier
+        classifier_results = self.results[classifier_name]
+
+        # Create a dictionary where keys are techniques and values are the metrics
+        extracted_results = {}
+        for technique_name, technique_data in classifier_results.items():
+            if metric_type in technique_data:
+                extracted_results[technique_name] = technique_data[metric_type]
+
+        # Convert to DataFrame for easier saving
+        results_df = pd.DataFrame(extracted_results)
+
+        # Save results in requested format
+        if file_type == "csv":
+            results_df.to_csv(file_path)
+        elif file_type == "json":
+            results_df.to_json(file_path)
+        else:
+            raise ValueError(f"Unsupported file type: {file_type}")
+
+        logging.info(f"Saved {classifier_name} {metric_type} results to {file_path}")
 
     def generate_balanced_data(
         self,
@@ -281,18 +436,16 @@ class BalancingFramework:
             elif file_format == "json":
                 balanced_df.to_json(file_path, index=False)
 
-            print(f"Saved balanced dataset for '{technique}' to {file_path}")
+            logging.info(f"Saved balanced dataset for '{technique}' to {file_path}")
 
     def compare_balanced_class_distributions(
-        self,
-        save_path: Optional[str] = None,
-        display: bool = False
+        self, save_path: Optional[str] = None, display: bool = False
     ) -> None:
         """
         Compare class distributions of balanced datasets for all techniques.
 
         Args:
-            save_path: Path to save the visualization (optional).
+            save_path: Path to save the visualisation (optional).
 
         Raises:
             ValueError: If no balanced datasets are available.
@@ -311,37 +464,79 @@ class BalancingFramework:
             distribution = self.preprocessor.inspect_class_distribution(y_balanced)
             distributions[technique] = distribution
 
-        # Call the visualization function
+        # Call the visualisation function
         plot_class_distributions_comparison(
             distributions,
             title="Class Distribution Comparison After Balancing",
             save_path=save_path,
-            display=display
+            display=display,
         )
 
     def generate_learning_curves(
         self,
+        classifier_name: str,
+        train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
+        n_folds: int = 5,
         save_path: Optional[str] = None,
-        display: bool = False
+        display: bool = False,
     ) -> None:
         """
         Generate and plot learning curves for multiple balancing techniques.
 
         Args:
+            classifier_name: Name of the classifier to generate curves for
+            train_sizes: Training set sizes to evaluate
+            n_folds: Number of cross-validation folds
             save_path: Path to save the plot (optional)
+            display: Whether to display the plot
         """
         if not self.current_balanced_datasets:
             raise ValueError(
-                "No balanced datasets available. Run compare_techniques first."
+                "No balanced datasets available. Run apply_balancing_techniques first."
             )
 
-        learning_curve_data = get_learning_curve_data_multiple_techniques(
-            techniques_data=self.current_balanced_datasets
-        )
+        try:
+            # Get the classifier class
+            clf_class = self.classifier_registry.get_classifier_class(classifier_name)
+            if clf_class is None:
+                logging.warning(
+                    f"Classifier '{classifier_name}' not found. Skipping learning curves."
+                )
+                return
 
-        plot_learning_curves(learning_curve_data,
-                             save_path=save_path,
-                             display=display)
+            # Get classifier parameters from configuration
+            clf_params = {}
+            if (
+                hasattr(self, "classifier_configs")
+                and classifier_name in self.classifier_configs
+            ):
+                clf_params = self.classifier_configs[classifier_name]
+
+            # Create classifier instance with the same parameters used in training
+            classifier = clf_class(**clf_params)
+
+            learning_curve_data = get_learning_curve_data_multiple_techniques(
+                classifier=classifier,
+                techniques_data=self.current_balanced_datasets,
+                train_sizes=train_sizes,
+                n_folds=n_folds,
+            )
+
+            title = f"{classifier_name} - Learning Curves"
+
+            plot_learning_curves(
+                learning_curve_data, title=title, save_path=save_path, display=display
+            )
+
+            logging.info(
+                f"Successfully generated learning curves for {classifier_name}"
+            )
+
+        except Exception as e:
+            logging.warning(
+                f"Failed to generate learning curves for classifier '{classifier_name}': {str(e)}"
+            )
+            logging.warning("Continuing with other visualisations...")
 
     def _get_class_distribution(self) -> Dict[Any, int]:
         """Get the distribution of classes in the target variable."""

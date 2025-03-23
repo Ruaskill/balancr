@@ -7,6 +7,8 @@ registered in main.py
 
 import logging
 import json
+import inspect
+import numpy as np
 from pathlib import Path
 
 from evaluation.visualisation import plot_comparison_results
@@ -17,12 +19,15 @@ from . import config
 try:
     from imbalance_framework.imbalance_analyser import BalancingFramework
     from imbalance_framework.technique_registry import TechniqueRegistry
-except ImportError:
+    from imbalance_framework.classifier_registry import ClassifierRegistry
+except ImportError as e:
+    logging.error(f"Could not import balancing framework: {str(e)}")
     logging.error(
         "Could not import balancing framework. Ensure it's installed correctly."
     )
     BalancingFramework = None
     TechniqueRegistry = None
+    ClassifierRegistry = None
 
 
 def load_data(args):
@@ -61,7 +66,7 @@ def load_data(args):
             )
 
             # Get and display class distribution
-            distribution = framework.inspect_class_distribution(plot=False)
+            distribution = framework.inspect_class_distribution(display=False)
             print("\nClass Distribution:")
             for cls, count in distribution.items():
                 print(f"  Class {cls}: {count} samples")
@@ -207,35 +212,168 @@ def select_classifier(args):
     Returns:
         int: Exit code
     """
-    logging.info(f"Selecting classifier: {args.classifier}")
+    # Check if we should list available classifiers
+    if args.list_available:
+        return list_available_classifiers(args)
 
-    # Parse classifier parameters if provided
-    classifier_params = {}
-    if args.params:
-        try:
-            classifier_params = json.loads(args.params)
-        except json.JSONDecodeError:
-            logging.error("Invalid JSON for classifier parameters")
-            return 1
+    logging.info(f"Selecting classifiers: {', '.join(args.classifiers)}")
 
-    # Update configuration with classifier settings
-    settings = {"classifier": {"name": args.classifier, "params": classifier_params}}
+    # Create classifier registry
+    if ClassifierRegistry is None:
+        logging.error("Classifier registry not available. Please check installation.")
+        return 1
+
+    registry = ClassifierRegistry()
+
+    # Get classifier configurations
+    classifier_configs = {}
+
+    for classifier_name in args.classifiers:
+        # Get the classifier class
+        classifier_class = registry.get_classifier_class(classifier_name)
+
+        if classifier_class is None:
+            logging.error(f"Classifier '{classifier_name}' not found.")
+            logging.info(
+                "Use 'balancr select-classifier --list-available' to see available classifiers."
+            )
+            continue
+
+        # Get default parameters
+        params = get_classifier_default_params(classifier_class)
+        classifier_configs[classifier_name] = params
+
+    # If no valid classifiers were found
+    if not classifier_configs:
+        logging.error("No valid classifiers selected.")
+        return 1
 
     try:
+        # Read existing config (we need this regardless of append mode)
+        current_config = config.load_config(args.config_path)
+
+        if args.append:
+            # Append mode: Update existing classifiers
+            existing_classifiers = current_config.get("classifiers", {})
+            existing_classifiers.update(classifier_configs)
+            settings = {"classifiers": existing_classifiers}
+
+            print(f"\nAdded classifiers: {', '.join(classifier_configs.keys())}")
+            print(f"Total classifiers: {', '.join(existing_classifiers.keys())}")
+        else:
+            # Replace mode: Create a completely new config entry
+            # We'll create a copy of the current config and explicitly set the classifiers
+            new_config = dict(current_config)  # shallow copy is sufficient
+            new_config["classifiers"] = classifier_configs
+
+            # Use config.write_config instead of update_config to replace the entire file
+            config_path = Path(args.config_path)
+            with open(config_path, "w") as f:
+                json.dump(new_config, f, indent=2)
+
+            print(
+                f"\nReplaced classifiers with: {', '.join(classifier_configs.keys())}"
+            )
+
+            # Return early since we've manually written the config
+            print("Default parameters have been added to the configuration file.")
+            print("You can modify them by editing the configuration or using the CLI.")
+            return 0
+
+        # Only reach here in append mode
         config.update_config(args.config_path, settings)
 
-        # Display confirmation
-        print(f"\nSelected classifier: {args.classifier}")
-        if classifier_params:
-            print("Classifier parameters:")
-            for param, value in classifier_params.items():
-                print(f"  - {param}: {value}")
+        print("Default parameters have been added to the configuration file.")
+        print("You can modify them by editing the configuration or using the CLI.")
 
         return 0
+    except Exception as e:
+        logging.error(f"Failed to select classifiers: {e}")
+        return 1
+
+
+def list_available_classifiers(args):
+    """
+    List all available classifiers.
+
+    Args:
+        args: Command line arguments from argparse
+
+    Returns:
+        int: Exit code
+    """
+    if ClassifierRegistry is None:
+        logging.error("Classifier registry not available. Please check installation.")
+        return 1
+
+    registry = ClassifierRegistry()
+    classifiers = registry.list_available_classifiers()
+
+    print("\nAvailable Classifiers:")
+
+    # Print sklearn classifiers by module
+    if "sklearn" in classifiers:
+        print("\nScikit-learn Classifiers:")
+        for module_name, clf_list in classifiers["sklearn"].items():
+            print(f"\n  {module_name.capitalize()}:")
+            for clf in sorted(clf_list):
+                print(f"    - {clf}")
+
+    # Print custom classifiers if any
+    if "custom" in classifiers and classifiers["custom"]:
+        print("\nCustom Classifiers:")
+        for module_name, clf_list in classifiers["custom"].items():
+            if clf_list:
+                print(f"\n  {module_name.capitalize()}:")
+                for clf in sorted(clf_list):
+                    print(f"    - {clf}")
+
+    return 0
+
+
+def get_classifier_default_params(classifier_class):
+    """
+    Extract default parameters from a classifier class.
+
+    Args:
+        classifier_class: The classifier class to inspect
+
+    Returns:
+        Dictionary of parameter names and their default values
+    """
+    params = {}
+
+    try:
+        # Get the signature of the __init__ method
+        sig = inspect.signature(classifier_class.__init__)
+
+        # Process each parameter
+        for name, param in sig.parameters.items():
+            # Skip 'self' parameter
+            if name == "self":
+                continue
+
+            # Get default value if it exists
+            if param.default is not inspect.Parameter.empty:
+                # Handle special case for None (JSON uses null)
+                if param.default is None:
+                    params[name] = None
+                # Handle other types that can be serialised to JSON
+                elif isinstance(param.default, (int, float, str, bool, list, dict)):
+                    params[name] = param.default
+                else:
+                    # Convert non-JSON-serialisable defaults to string representation
+                    params[name] = str(param.default)
+            else:
+                # For parameters without defaults, use None
+                params[name] = None
 
     except Exception as e:
-        logging.error(f"Failed to select classifier: {e}")
-        return 1
+        logging.warning(
+            f"Error extracting parameters from {classifier_class.__name__}: {e}"
+        )
+
+    return params
 
 
 def configure_metrics(args):
@@ -340,6 +478,8 @@ def configure_evaluation(args):
             "test_size": args.test_size,
             "cross_validation": args.cross_validation,
             "random_state": args.random_state,
+            "learning_curve_folds": args.learning_curve_folds,
+            "learning_curve_points": args.learning_curve_points
         }
     }
 
@@ -351,6 +491,8 @@ def configure_evaluation(args):
         print(f"  Test Size: {args.test_size}")
         print(f"  Cross-Validation Folds: {args.cross_validation}")
         print(f"  Random State: {args.random_state}")
+        print(f"  Learning Curve Folds: {args.learning_curve_folds}")
+        print(f"  Learning Curve Points: {args.learning_curve_points}")
 
         return 0
 
@@ -404,7 +546,8 @@ def run_comparison(args):
 
     eval_config = current_config.get("evaluation", {})
     test_size = eval_config.get("test_size", 0.2)
-    # cross_validation = eval_config.get("cross_validation", 0) Will add later
+    cv_enabled = eval_config.get("cross_validation", 0) > 0
+    cv_folds = eval_config.get("cross_validation", 5)
     random_state = eval_config.get("random_state", 42)
 
     logging.info(
@@ -413,7 +556,7 @@ def run_comparison(args):
     logging.info(f"Results will be saved to: {output_dir}")
 
     try:
-        # Initialize the framework
+        # Initialise the framework
         framework = BalancingFramework()
 
         # Load data
@@ -427,95 +570,243 @@ def run_comparison(args):
 
         # Apply preprocessing if configured
         if "preprocessing" in current_config:
-            logging.info("Applying preprocessing")
+            logging.info("Applying preprocessing...")
             preproc = current_config["preprocessing"]
 
-            framework.preprocess_data(
-                handle_missing=preproc.get("handle_missing", "mean"),
-                scale=preproc.get("scale", "standard"),
-                encode=preproc.get("encode", "auto"),
-            )
+            handle_missing = preproc.get("handle_missing", "mean")
+            scale = preproc.get("scale", "standard")
+            encode = preproc.get("encode", "auto")
 
-        # Run comparison - don't display plots here, we'll handle display separately
-        logging.info("Comparing balancing techniques")
-        results = framework.compare_techniques(
+            framework.preprocess_data(
+                handle_missing=handle_missing,
+                scale=scale,
+                encode=encode,
+            )
+            logging.info("Data preprocessing applied")
+
+        # Apply balancing techniques
+        logging.info("Applying balancing techniques...")
+        framework.apply_balancing_techniques(
             current_config["balancers"],
             test_size=test_size,
             random_state=random_state,
-            plot_results=False,
+        )
+        logging.info("Balancing techniques applied successfully")
+
+        # Save balanced datasets at the root level
+        balanced_dir = output_dir / "balanced_datasets"
+        balanced_dir.mkdir(exist_ok=True)
+        logging.info(f"Saving balanced datasets to {balanced_dir}")
+        framework.generate_balanced_data(
+            folder_path=str(balanced_dir),
+            techniques=current_config["balancers"],
+            file_format="csv"
         )
 
-        # Save metrics in requested formats
-        for format_type in save_metrics_formats:
-            if format_type != "none":
-                results_file = output_dir / f"comparison_results.{format_type}"
-                logging.info(f"Saving results to {results_file}")
-                framework.save_results(
-                    results_file,
-                    file_type=format_type,
-                    include_plots=False,  # Handle plots separately below
-                )
+        # Train classifiers
+        logging.info("Training classifiers on balanced datasets...")
+        classifiers = current_config.get("classifiers", {})
+        if not classifiers:
+            logging.warning(
+                "No classifiers configured. Using default RandomForestClassifier."
+            )
 
-        # Determine which visualization types to generate
+        # Train classifiers with the balanced datasets
+        results = framework.train_classifiers(
+            classifier_configs=classifiers, enable_cv=cv_enabled, cv_folds=cv_folds
+        )
+
+        logging.info("Training and evaluation complete")
+
+        # Determine which visualisation types to generate
         vis_types_to_generate = []
         if "all" in visualisations:
             vis_types_to_generate = ["metrics", "distribution", "learning_curves"]
         else:
             vis_types_to_generate = visualisations
 
-        # Generate, save, and optionally display visualizations
-        for vis_type in vis_types_to_generate:
-            if vis_type == "none":
+        # Save class distribution visualisations at the root level
+        for format_type in save_vis_formats:
+            if format_type == "none":
                 continue
 
+            if "distribution" in vis_types_to_generate or "all" in visualisations:
+                # Original (imbalanced) class distribution
+                logging.info(
+                    f"Generating imbalanced class distribution in {format_type} format"
+                )
+                imbalanced_plot_path = (
+                    output_dir / f"imbalanced_class_distribution.{format_type}"
+                )
+                framework.inspect_class_distribution(
+                    save_path=str(imbalanced_plot_path), display=display_visualisations
+                )
+
+                # Balanced class distributions comparison
+                logging.info(
+                    f"Generating balanced class distribution comparison in {format_type} format"
+                )
+                balanced_plot_path = (
+                    output_dir / f"balanced_class_distribution.{format_type}"
+                )
+                framework.compare_balanced_class_distributions(
+                    save_path=str(balanced_plot_path),
+                    display=display_visualisations,
+                )
+
+        # Process each classifier and save its results in a separate directory
+        for classifier_name in current_config.get("classifiers", {}):
+            logging.info(f"Processing results for classifier: {classifier_name}")
+
+            # Create classifier-specific directory
+            classifier_dir = output_dir / classifier_name
+            classifier_dir.mkdir(exist_ok=True)
+
+            # Create standard metrics directory
+            std_metrics_dir = classifier_dir / "standard_metrics"
+            std_metrics_dir.mkdir(exist_ok=True)
+
+            # Save standard metrics in requested formats
+            for format_type in save_metrics_formats:
+                if format_type == "none":
+                    continue
+
+                results_file = std_metrics_dir / f"comparison_results.{format_type}"
+                logging.info(
+                    f"Saving standard metrics for {classifier_name} to {results_file}"
+                )
+
+                # We need a modified save_results method that can extract a specific classifier's results
+                framework.save_classifier_results(
+                    results_file,
+                    classifier_name=classifier_name,
+                    metric_type="standard_metrics",
+                    file_type=format_type,
+                )
+
+            # Generate and save standard metrics visualisations
             for format_type in save_vis_formats:
                 if format_type == "none":
                     continue
 
-                if vis_type == "metrics":
+                print(f"vis_types_to_generate: '{vis_types_to_generate}'")
+                if "metrics" in vis_types_to_generate or "all" in visualisations:
+                    metrics_path = std_metrics_dir / f"metrics_comparison.{format_type}"
                     logging.info(
-                        f"Generating metrics comparison plot in {format_type} format"
+                        f"Generating metrics comparison for {classifier_name} in {format_type} format"
                     )
-                    plot_path = output_dir / f"metrics_comparison.{format_type}"
+
+                    # Call a modified plot_comparison_results that can handle specific classifier data
                     plot_comparison_results(
                         results,
-                        save_path=str(plot_path),
-                        display=display_visualisations
+                        classifier_name=classifier_name,
+                        metric_type="standard_metrics",
+                        save_path=str(metrics_path),
+                        display=display_visualisations,
                     )
 
-                elif vis_type == "distribution":
+                if "learning_curves" in vis_types_to_generate or "all" in visualisations:
+                    learning_curve_path = (
+                        std_metrics_dir / f"learning_curves.{format_type}"
+                    )
                     logging.info(
-                        f"Generating class distribution plots in {format_type} format"
-                    )
-                    # Original class distribution
-                    imbalanced_plot_path = output_dir / f"imbalanced_class_distribution.{format_type}"
-                    framework.inspect_class_distribution(
-                        save_path=str(imbalanced_plot_path),
-                        display=display_visualisations
+                        f"Generating learning curves for {classifier_name} in {format_type} format"
                     )
 
-                    # Balanced class distributions comparison
-                    balanced_plot_path = output_dir / f"balanced_class_distribution.{format_type}"
-                    framework.compare_balanced_class_distributions(
-                        save_path=str(balanced_plot_path),
-                        display=display_visualisations
-                    )
+                    # Get learning curve parameters from config
+                    learning_curve_points = eval_config.get("learning_curve_points", 10)
+                    learning_curve_folds = eval_config.get("learning_curve_folds", 5)
+                    train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
 
-                elif vis_type == "learning_curves":
-                    logging.info(f"Generating learning curves in {format_type} format")
-                    plot_path = output_dir / f"learning_curves.{format_type}"
+                    # Generate learning curves for particular classifier
                     framework.generate_learning_curves(
-                        save_path=str(plot_path),
+                        classifier_name=classifier_name,
+                        train_sizes=train_sizes,
+                        n_folds=learning_curve_folds,
+                        save_path=str(learning_curve_path),
                         display=display_visualisations
                     )
+
+            # If cross-validation is enabled, create CV metrics directory and save results
+            if cv_enabled:
+                cv_metrics_dir = classifier_dir / "cv_metrics"
+                cv_metrics_dir.mkdir(exist_ok=True)
+
+                # Save CV metrics in requested formats
+                for format_type in save_metrics_formats:
+                    if format_type == "none":
+                        continue
+
+                    cv_results_file = (
+                        cv_metrics_dir / f"comparison_results.{format_type}"
+                    )
+                    logging.info(
+                        f"Saving CV metrics for {classifier_name} to {cv_results_file}"
+                    )
+
+                    framework.save_classifier_results(
+                        cv_results_file,
+                        classifier_name=classifier_name,
+                        metric_type="cv_metrics",
+                        file_type=format_type,
+                    )
+
+                # Generate and save CV metrics visualisations
+                for format_type in save_vis_formats:
+                    if format_type == "none":
+                        continue
+
+                    if "metrics" in vis_types_to_generate or "all" in visualisations:
+                        cv_metrics_path = (
+                            cv_metrics_dir / f"metrics_comparison.{format_type}"
+                        )
+                        logging.info(
+                            f"Generating CV metrics comparison for {classifier_name} in {format_type} format"
+                        )
+
+                        plot_comparison_results(
+                            results,
+                            classifier_name=classifier_name,
+                            metric_type="cv_metrics",
+                            save_path=str(cv_metrics_path),
+                            display=display_visualisations,
+                        )
+
+                    if (
+                        "learning_curves" in vis_types_to_generate
+                        or "all" in visualisations
+                    ):
+                        cv_learning_curve_path = (
+                            cv_metrics_dir / f"learning_curves.{format_type}"
+                        )
+                        logging.info(
+                            f"Generating CV learning curves for {classifier_name} in {format_type} format"
+                        )
+
+                        # Get learning curve parameters from config
+                        learning_curve_points = eval_config.get("learning_curve_points", 10)
+                        learning_curve_folds = eval_config.get("learning_curve_folds", 5)
+                        train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
+
+                        framework.generate_learning_curves(
+                            classifier_name=classifier_name,
+                            train_sizes=train_sizes,
+                            n_folds=learning_curve_folds,
+                            save_path=str(cv_learning_curve_path),
+                            display=display_visualisations
+                        )
 
         # Print summary of results
         print("\nResults Summary:")
-        for technique, technique_metrics in results.items():
-            print(f"\n{technique}:")
-            for metric_name, value in technique_metrics.items():
-                if metric_name in metrics:
-                    print(f"  {metric_name}: {value:.4f}")
+        for classifier_name, classifier_results in results.items():
+            print(f"\n{classifier_name}:")
+            for technique_name, technique_metrics in classifier_results.items():
+                print(f"  {technique_name}:")
+                if "standard_metrics" in technique_metrics:
+                    std_metrics = technique_metrics["standard_metrics"]
+                    for metric_name, value in std_metrics.items():
+                        if metric_name in metrics:
+                            print(f"    {metric_name}: {value:.4f}")
 
         print(f"\nDetailed results saved to: {output_dir}")
         return 0
@@ -540,7 +831,7 @@ def reset_config(args):
         int: Exit code
     """
     try:
-        config.initialize_config(args.config_path, force=True)
+        config.initialise_config(args.config_path, force=True)
         logging.info("Configuration has been reset to defaults")
         return 0
     except Exception as e:
