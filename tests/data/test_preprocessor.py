@@ -87,7 +87,7 @@ def test_preprocess_scaling(preprocessor, sample_data):
     """Test feature scaling"""
     X, y = sample_data
     X_processed, y_processed = preprocessor.preprocess(
-        X, y, scale_features=True, encode_labels=False
+        X, y, scale=True, encode=False
     )
 
     # Check if data is scaled (mean ≈ 0, std ≈ 1)
@@ -99,7 +99,7 @@ def test_preprocess_label_encoding(preprocessor, sample_data):
     """Test label encoding"""
     X, y = sample_data
     X_processed, y_processed = preprocessor.preprocess(
-        X, y, scale_features=False, encode_labels=True
+        X, y, scale=False, encode="auto"
     )
 
     assert y_processed.dtype == np.int64
@@ -121,7 +121,7 @@ def test_preprocess_no_modifications(preprocessor, sample_data):
     """Test preprocessing with no modifications"""
     X, y = sample_data
     X_processed, y_processed = preprocessor.preprocess(
-        X, y, scale_features=False, encode_labels=False
+        X, y, scale=False, encode=False
     )
 
     # Only missing values should be handled
