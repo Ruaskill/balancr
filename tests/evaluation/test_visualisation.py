@@ -24,20 +24,26 @@ def sample_distributions():
 
 @pytest.fixture
 def sample_results():
-    """Create sample comparison results"""
+    """Create sample comparison results with nested structure"""
     return {
-        "SMOTE": {
-            "precision": 0.8,
-            "recall": 0.7,
-            "f1": 0.75,
-            "roc_auc": 0.85
+        "RandomForestClassifier": {
+            "SMOTE": {
+                "standard_metrics": {
+                    "precision": 0.8,
+                    "recall": 0.7,
+                    "f1": 0.75,
+                    "roc_auc": 0.85,
+                }
             },
-        "RandomUnderSampler": {
-            "precision": 0.75,
-            "recall": 0.8,
-            "f1": 0.775,
-            "roc_auc": 0.82,
-        },
+            "RandomUnderSampler": {
+                "standard_metrics": {
+                    "precision": 0.75,
+                    "recall": 0.8,
+                    "f1": 0.775,
+                    "roc_auc": 0.82,
+                }
+            },
+        }
     }
 
 
@@ -62,15 +68,16 @@ def temp_path(tmp_path):
 @patch("matplotlib.pyplot.show")
 def test_plot_class_distribution(mock_show, sample_distribution, temp_path):
     """Test if plot_class_distribution runs without errors and saves files correctly"""
-    # Test without saving
-    plot_class_distribution(sample_distribution)
+    plot_class_distribution(sample_distribution, display=True)
     mock_show.assert_called_once()
+    mock_show.reset_mock()  # Reset the mock for the next call
 
     # Test with saving
     save_path = temp_path / "class_dist.png"
     os.makedirs(temp_path, exist_ok=True)
     plot_class_distribution(sample_distribution, save_path=str(save_path))
     assert save_path.exists()
+    mock_show.assert_not_called()  # plt.show shouldn't be called when display=False
 
 
 @patch("matplotlib.pyplot.show")
@@ -78,43 +85,55 @@ def test_plot_class_distributions_comparison(
     mock_show, sample_distributions, temp_path
 ):
     """Test if plot_class_distributions_comparison runs without errors and saves files correctly"""
-    # Test without saving
-    plot_class_distributions_comparison(sample_distributions)
+    # Test with display=True
+    plot_class_distributions_comparison(sample_distributions, display=True)
     mock_show.assert_called_once()
+    mock_show.reset_mock()
 
     # Test with saving
     save_path = temp_path / "class_dist_comparison.png"
     os.makedirs(temp_path, exist_ok=True)
     plot_class_distributions_comparison(sample_distributions, save_path=str(save_path))
     assert save_path.exists()
+    mock_show.assert_not_called()
 
 
 @patch("matplotlib.pyplot.show")
 def test_plot_comparison_results(mock_show, sample_results, temp_path):
     """Test if plot_comparison_results runs without errors and saves files correctly"""
-    # Test without saving
-    plot_comparison_results(sample_results)
+    # Test with display=True
+    plot_comparison_results(
+        sample_results, classifier_name="RandomForestClassifier", display=True
+    )
     mock_show.assert_called_once()
+    mock_show.reset_mock()
 
     # Test with saving
     save_path = temp_path / "comparison_results.png"
     os.makedirs(temp_path, exist_ok=True)
-    plot_comparison_results(sample_results, save_path=str(save_path))
+    plot_comparison_results(
+        sample_results,
+        classifier_name="RandomForestClassifier",
+        save_path=str(save_path),
+    )
     assert save_path.exists()
+    mock_show.assert_not_called()
 
 
 @patch("matplotlib.pyplot.show")
 def test_plot_learning_curves(mock_show, sample_learning_curve_data, temp_path):
     """Test if plot_learning_curves runs without errors and saves files correctly"""
-    # Test without saving
-    plot_learning_curves(sample_learning_curve_data)
+    # Test with display=True
+    plot_learning_curves(sample_learning_curve_data, display=True)
     mock_show.assert_called_once()
+    mock_show.reset_mock()
 
     # Test with saving
     save_path = temp_path / "learning_curves.png"
     os.makedirs(temp_path, exist_ok=True)
     plot_learning_curves(sample_learning_curve_data, save_path=str(save_path))
     assert save_path.exists()
+    mock_show.assert_not_called()
 
 
 def test_plot_class_distribution_invalid_input():
@@ -138,10 +157,10 @@ def test_plot_class_distributions_comparison_invalid_input():
 def test_plot_comparison_results_invalid_input():
     """Test if plot_comparison_results handles invalid input correctly"""
     with pytest.raises(ValueError):
-        plot_comparison_results({})
+        plot_comparison_results({}, classifier_name="NonExistentClassifier")
 
     with pytest.raises(TypeError):
-        plot_comparison_results(None)
+        plot_comparison_results(None, classifier_name="SomeClassifier")
 
 
 def test_plot_learning_curves_invalid_input():
