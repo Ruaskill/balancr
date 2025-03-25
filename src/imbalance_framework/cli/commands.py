@@ -207,7 +207,7 @@ def select_techniques(args):
         current_config = config.load_config(args.config_path)
 
         if args.append and "balancing_techniques" in current_config:
-            # Get existing techniques with their parameters
+            # Append mode: Update existing techniques
             existing_techniques = current_config.get("balancing_techniques", {})
 
             # Add new techniques to the existing ones
@@ -217,19 +217,29 @@ def select_techniques(args):
             # Update config with merged values
             settings = {"balancing_techniques": existing_techniques}
 
+            config.update_config(args.config_path, settings)
+
             print(f"\nAdded balancing techniques: {', '.join(args.techniques)}")
             print(f"Total techniques: {', '.join(existing_techniques.keys())}")
         else:
-            # Replace mode: new techniques replace existing ones
-            settings = {
-                "balancing_techniques": (
-                    balancing_techniques if BalancingFramework is not None else {}
-                )
-            }
+            # Replace mode: Create a completely new config entry
+            # Create a copy of the current config and set the techniques
+            new_config = dict(current_config)  # shallow copy
+            new_config["balancing_techniques"] = (
+                balancing_techniques if BalancingFramework is not None else {}
+            )
 
-            print(f"\nSelected balancing techniques: {', '.join(args.techniques)}")
+            # Directly write the entire config to replace the file
+            config_path = Path(args.config_path)
+            with open(config_path, "w") as f:
+                json.dump(new_config, f, indent=2)
 
-        config.update_config(args.config_path, settings)
+            print(f"\nReplaced balancing techniques with: {', '.join(args.techniques)}")
+
+            # Return early since we've manually written the config
+            print("Default parameters have been added to the configuration file.")
+            print("You can modify them by editing the configuration file.")
+            return 0
 
         print("Default parameters have been added to the configuration file.")
         print("You can modify them by editing the configuration file.")
@@ -1236,9 +1246,7 @@ def run_comparison(args):
 
     balancing_techniques = current_config.get("balancing_techniques", {})
     technique_names = list(balancing_techniques.keys())
-    logging.info(
-        f"Running comparison with techniques: {', '.join(technique_names)}"
-    )
+    logging.info(f"Running comparison with techniques: {', '.join(technique_names)}")
     logging.info(f"Results will be saved to: {output_dir}")
 
     try:
