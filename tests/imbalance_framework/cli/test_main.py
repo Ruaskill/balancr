@@ -335,7 +335,6 @@ class TestConfigInitialisation:
         mock_init_config.assert_not_called()
 
 
-
 class TestCommandLineArgParsing:
     """Test the CLI can parse real command-line arguments for key commands."""
 
