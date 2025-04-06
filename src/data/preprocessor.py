@@ -50,22 +50,49 @@ class DataPreprocessor:
         if feature_names is None:
             feature_names = [f"Feature_{i}" for i in range(X.shape[1])]
 
+        # Convert to pandas DataFrame for better handling of mixed types
+        X_df = pd.DataFrame(X, columns=feature_names)
+
         quality_report = {
-            "missing_values": np.isnan(X).sum(axis=0),
-            "constant_features": np.where(np.std(X, axis=0) == 0)[0],
-            "feature_correlations": None,
+            # Use pandas isna() which works with any data type
+            "missing_values": X_df.isna().sum().values,
+            "constant_features": [],
+            "feature_correlations": [],
         }
 
-        # Calculate correlations if we have enough samples
-        if X.shape[0] > 1:
-            correlations = pd.DataFrame(X, columns=feature_names).corr()
-            # Find highly correlated features (above 0.95)
-            high_corr = np.where(np.abs(correlations) > 0.95)
-            quality_report["feature_correlations"] = [
-                (feature_names[i], feature_names[j], correlations.iloc[i, j])
-                for i, j in zip(*high_corr)
-                if i < j  # Only take upper triangle to avoid duplicates
-            ]
+        # Check for constant features
+        for i, col in enumerate(feature_names):
+            if X_df[col].nunique(dropna=True) <= 1:
+                quality_report["constant_features"].append(i)
+
+        # Convert to numpy array for compatibility
+        quality_report["constant_features"] = np.array(
+            quality_report["constant_features"]
+        )
+
+        # Calculate correlations only on numeric columns
+        numeric_cols = X_df.select_dtypes(include=np.number).columns
+
+        if len(numeric_cols) > 1 and X_df.shape[0] > 1:
+            try:
+                correlations = X_df[numeric_cols].corr()
+                high_corr_pairs = []
+
+                for i in range(len(correlations.columns)):
+                    for j in range(i + 1, len(correlations.columns)):
+                        if abs(correlations.iloc[i, j]) > 0.95:
+                            # Map back to original column names
+                            col_i = correlations.columns[i]
+                            col_j = correlations.columns[j]
+                            high_corr_pairs.append(
+                                (col_i, col_j, correlations.iloc[i, j])
+                            )
+                quality_report["feature_correlations"] = high_corr_pairs
+            except Exception:
+                # In case of correlation calculation errors
+                quality_report["feature_correlations"] = []
+        else:
+            quality_report["feature_correlations"] = []
 
         return quality_report
 
