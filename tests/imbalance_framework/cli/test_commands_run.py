@@ -1065,13 +1065,17 @@ class TestResetConfigCommand:
 
     @patch("imbalance_framework.cli.config.initialise_config")
     @patch("imbalance_framework.cli.commands.logging.info")
-    def test_reset_config_success(self, mock_info, mock_initialise_config, args_reset_config):
+    def test_reset_config_success(
+        self, mock_info, mock_initialise_config, args_reset_config
+    ):
         """Test successful configuration reset."""
         # Call function
         result = commands.reset_config(args_reset_config)
 
         # Verify initialise_config was called with force=True
-        mock_initialise_config.assert_called_once_with(args_reset_config.config_path, force=True)
+        mock_initialise_config.assert_called_once_with(
+            args_reset_config.config_path, force=True
+        )
 
         # Verify success message was logged
         mock_info.assert_called_once_with("Configuration has been reset to defaults")
@@ -1081,7 +1085,9 @@ class TestResetConfigCommand:
 
     @patch("imbalance_framework.cli.config.initialise_config")
     @patch("imbalance_framework.cli.commands.logging.error")
-    def test_reset_config_exception(self, mock_error, mock_initialise_config, args_reset_config):
+    def test_reset_config_exception(
+        self, mock_error, mock_initialise_config, args_reset_config
+    ):
         """Test handling of exceptions during configuration reset."""
         # Make initialise_config raise an exception
         mock_initialise_config.side_effect = Exception("Permission denied")
