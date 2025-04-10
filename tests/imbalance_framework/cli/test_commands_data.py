@@ -188,13 +188,16 @@ class TestPreprocessCommand:
 
         # Make update_config raise an exception
         mock_update_config.side_effect = Exception("Config error")
- 
+
         # Call function
         result = commands.preprocess(args_preprocess)
 
         # Verify error was logged and correct result returned
         assert "Error analysing dataset for encoding"
-        assert "Failed to configure preprocessing: Config error" in mock_error.call_args[0][0]
+        assert (
+            "Failed to configure preprocessing: Config error"
+            in mock_error.call_args[0][0]
+        )
         assert result == 1
 
     @patch("imbalance_framework.cli.config.load_config")
