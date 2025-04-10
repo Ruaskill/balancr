@@ -9,6 +9,7 @@ import argparse
 import sys
 import logging
 from pathlib import Path
+import warnings
 
 # Import commands module (will be implemented next)
 from . import commands
@@ -722,6 +723,9 @@ Examples:
 
 def main():
     """Main entry point for the CLI."""
+    # Filter scikit-learn FutureWarnings
+    warnings.filterwarnings("ignore", category=FutureWarning, module="sklearn")
+    
     parser = create_parser()
     args = parser.parse_args()
 
