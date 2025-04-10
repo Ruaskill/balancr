@@ -6,6 +6,7 @@ registered in main.py
 """
 
 import shutil
+import time
 from datetime import datetime
 import importlib
 import logging
@@ -1274,6 +1275,13 @@ def configure_evaluation(args):
         return 1
 
 
+def format_time(seconds):
+    """Format time in seconds to minutes and seconds"""
+    minutes = int(seconds // 60)
+    remaining_seconds = seconds % 60
+    return f"{minutes}mins, {remaining_seconds:.2f}secs"
+
+
 def run_comparison(args):
     """
     Handle the run command.
@@ -1284,6 +1292,8 @@ def run_comparison(args):
     Returns:
         int: Exit code
     """
+    start_time_total = time.time()
+
     # Load current configuration
     try:
         current_config = config.load_config(args.config_path)
@@ -1333,6 +1343,7 @@ def run_comparison(args):
         framework = BalancingFramework()
 
         # Load data
+        start_time = time.time()
         logging.info(f"Loading data from {current_config['data_file']}")
         feature_columns = current_config.get("feature_columns", None)
         framework.load_data(
@@ -1340,6 +1351,8 @@ def run_comparison(args):
             current_config["target_column"],
             feature_columns,
         )
+        load_time = time.time() - start_time
+        logging.info(f"Data loading completed (Time Taken: {format_time(load_time)})")
 
         # Apply preprocessing if configured
         if "preprocessing" in current_config:
@@ -1398,6 +1411,7 @@ def run_comparison(args):
                     logging.warning(f"Could not save preprocessed dataset: {e}")
 
         # Apply balancing techniques
+        start_time = time.time()
         logging.info("Applying balancing techniques...")
         framework.apply_balancing_techniques(
             technique_names,
@@ -1405,7 +1419,8 @@ def run_comparison(args):
             random_state=random_state,
             technique_params=balancing_techniques,
         )
-        logging.info("Balancing techniques applied successfully")
+        balancing_time = time.time() - start_time
+        logging.info(f"Balancing techniques applied successfully (Time Taken: {format_time(balancing_time)})")
 
         # Save balanced datasets at the root level
         balanced_dir = output_dir / "balanced_datasets"
@@ -1416,21 +1431,6 @@ def run_comparison(args):
             techniques=technique_names,
             file_format="csv",
         )
-
-        # Train classifiers
-        logging.info("Training classifiers on balanced datasets...")
-        classifiers = current_config.get("classifiers", {})
-        if not classifiers:
-            logging.warning(
-                "No classifiers configured. Using default RandomForestClassifier."
-            )
-
-        # Train classifiers with the balanced datasets
-        results = framework.train_classifiers(
-            classifier_configs=classifiers, enable_cv=cv_enabled, cv_folds=cv_folds
-        )
-
-        logging.info("Training and evaluation complete")
 
         # Determine which visualisation types to generate
         vis_types_to_generate = []
@@ -1447,7 +1447,7 @@ def run_comparison(args):
             if "distribution" in vis_types_to_generate or "all" in visualisations:
                 # Original (imbalanced) class distribution
                 logging.info(
-                    f"Generating imbalanced class distribution in {format_type} format"
+                    f"Generating imbalanced class distribution in {format_type} format..."
                 )
                 imbalanced_plot_path = (
                     output_dir / f"imbalanced_class_distribution.{format_type}"
@@ -1458,7 +1458,7 @@ def run_comparison(args):
 
                 # Balanced class distributions comparison
                 logging.info(
-                    f"Generating balanced class distribution comparison in {format_type} format"
+                    f"Generating balanced class distribution comparison in {format_type}..."
                 )
                 balanced_plot_path = (
                     output_dir / f"balanced_class_distribution.{format_type}"
@@ -1468,7 +1468,25 @@ def run_comparison(args):
                     display=display_visualisations,
                 )
 
+        # Train classifiers
+        start_time = time.time()
+        logging.info("Training classifiers on balanced datasets...")
+        classifiers = current_config.get("classifiers", {})
+        if not classifiers:
+            logging.warning(
+                "No classifiers configured. Using default RandomForestClassifier."
+            )
+
+        # Train classifiers with the balanced datasets
+        results = framework.train_classifiers(
+            classifier_configs=classifiers, enable_cv=cv_enabled, cv_folds=cv_folds
+        )
+
+        training_time = time.time() - start_time
+        logging.info(f"Training classifiers complete (Time Taken: {format_time(training_time)})")
+
         # Process each classifier and save its results in a separate directory
+        standard_start_time = time.time()
         for classifier_name in current_config.get("classifiers", {}):
             logging.info(f"Processing results for classifier: {classifier_name}")
 
@@ -1507,7 +1525,7 @@ def run_comparison(args):
                 if "metrics" in vis_types_to_generate or "all" in visualisations:
                     metrics_path = std_metrics_dir / f"metrics_comparison.{format_type}"
                     logging.info(
-                        f"Generating metrics comparison for {classifier_name} in {format_type} format"
+                        f"Generating metrics comparison for {classifier_name} in {format_type} format..."
                     )
 
                     # Call a modified plot_comparison_results that can handle specific classifier data
@@ -1526,8 +1544,10 @@ def run_comparison(args):
                     learning_curve_path = (
                         std_metrics_dir / f"learning_curves.{format_type}"
                     )
+
+                    start_time = time.time()
                     logging.info(
-                        f"Generating learning curves for {classifier_name} in {format_type} format"
+                        f"Generating learning curves for {classifier_name} in {format_type} format..."
                     )
 
                     # Get learning curve parameters from config
@@ -1543,9 +1563,16 @@ def run_comparison(args):
                         save_path=str(learning_curve_path),
                         display=display_visualisations,
                     )
+                    learning_curves_time = time.time() - start_time
+                    logging.info(f"Successfully generated learning curves for {classifier_name}"
+                                 f"(Time Taken: {format_time(learning_curves_time)})")
+        standard_total_time = time.time() - standard_start_time
+        logging.info(f"Standard metrics evaluation total time: {format_time(standard_total_time)}")
 
-            # If cross-validation is enabled, create CV metrics directory and save results
-            if cv_enabled:
+        # If cross-validation is enabled, create CV metrics directory and save results
+        if cv_enabled:
+            cv_start_time = time.time()
+            for classifier_name in current_config.get("classifiers", {}):
                 cv_metrics_dir = classifier_dir / "cv_metrics"
                 cv_metrics_dir.mkdir(exist_ok=True)
 
@@ -1578,7 +1605,7 @@ def run_comparison(args):
                             cv_metrics_dir / f"metrics_comparison.{format_type}"
                         )
                         logging.info(
-                            f"Generating CV metrics comparison for {classifier_name} in {format_type} format"
+                            f"Generating CV metrics comparison for {classifier_name} in {format_type} format..."
                         )
 
                         plot_comparison_results(
@@ -1596,8 +1623,10 @@ def run_comparison(args):
                         cv_learning_curve_path = (
                             cv_metrics_dir / f"learning_curves.{format_type}"
                         )
+
+                        start_time = time.time()
                         logging.info(
-                            f"Generating CV learning curves for {classifier_name} in {format_type} format"
+                            f"Generating CV learning curves for {classifier_name} in {format_type} format..."
                         )
 
                         # Get learning curve parameters from config
@@ -1616,6 +1645,24 @@ def run_comparison(args):
                             save_path=str(cv_learning_curve_path),
                             display=display_visualisations,
                         )
+                        cv_learning_curves_time = time.time() - start_time
+                        logging.info(f"Successfully generated cv learning curves for {classifier_name}"
+                                     f"(Time Taken: {format_time(cv_learning_curves_time)})")
+            cv_total_time = time.time() - cv_start_time
+            logging.info(f"Cross validation metrics evaluation total time: {format_time(cv_total_time)}")
+
+        total_time = time.time() - start_time_total
+        logging.info(f"Total execution time: {format_time(total_time)}")
+
+        # Print summary of timing results
+        print("\nExecution Time Summary:")
+        print(f"  Data Loading:        {format_time(load_time)}")
+        print(f"  Balancing:           {format_time(balancing_time)}")
+        print(f"  Training Classifiers: {format_time(training_time)}")
+        print(f"  Standard Metrics Evaluation: {format_time(standard_total_time)}")
+        if cv_enabled:
+            print(f"  CV Metrics Evaluation: {format_time(cv_total_time)}")
+        print(f"  Total Time:          {format_time(total_time)}")
 
         # Print summary of results
         print("\nResults Summary:")

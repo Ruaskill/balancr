@@ -579,10 +579,6 @@ class BalancingFramework:
                 learning_curve_data, title=title, save_path=save_path, display=display
             )
 
-            logging.info(
-                f"Successfully generated learning curves for {classifier_name}"
-            )
-
         except Exception as e:
             logging.warning(
                 f"Failed to generate learning curves for classifier '{classifier_name}': {str(e)}"
