@@ -125,13 +125,13 @@ def register_load_data_command(subparsers):
         epilog="""
 Examples:
   # Load a dataset with all features
-  balancr load-data dataset.csv -t target
+  balancr load-data dataset.csv -t target-name
 
-  # Load a dataset with specific features
-  balancr load-data dataset.csv -t target -f feature1 feature2 feature3
+  # Load a dataset with only specific features
+  balancr load-data dataset.csv -t target-name -f feature1 feature2 feature3
 
   # Load from an Excel file
-  balancr load-data data.xlsx -t class
+  balancr load-data data.xlsx -t target-name
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -154,6 +154,15 @@ Examples:
     )
     parser.set_defaults(func=commands.load_data)
 
+def correlation_threshold_type(value):
+    """Validate that correlation threshold is between 0 and 1."""
+    try:
+        value = float(value)
+        if value < 0 or value > 1:
+            raise argparse.ArgumentTypeError(f"Correlation threshold must be between 0 and 1, got {value}")
+        return value
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Correlation threshold must be a float, got {value}")
 
 def register_preprocess_command(subparsers):
     """Register the preprocess command."""
@@ -166,11 +175,14 @@ Examples:
   # Configure standard scaling and mean imputation
   balancr preprocess --scale standard --handle-missing mean
 
-  # Skip scaling but encode categorical features
-  balancr preprocess --scale none --encode label
+  # Skip scaling but encode categorical features as label encoding
+  balancr preprocess --categorical-features gender occupation --encode label
 
   # Remove rows with missing values
   balancr preprocess --handle-missing drop
+  
+  # Specify categorical features for automatic encoding recommendation
+  balancr preprocess --categorical-features gender education_level occupation
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -188,9 +200,60 @@ Examples:
     )
     parser.add_argument(
         "--encode",
-        choices=["auto", "onehot", "label", "ordinal", "none"],
+        choices=["auto", "onehot", "label", "ordinal", "hash", "none"],
         default="auto",
-        help="Encoding for categorical features: 'auto' (detect and convert), 'onehot' (one-hot encoding), 'label' (integer labels), 'none' (no encoding)",
+        help="Encoding method for categorical features: 'auto' (recommend per column), 'onehot' (one-hot encoding), 'label' (integer labels), 'ordinal' (ordered integer labels), 'hash' (hash encoding), 'none' (no encoding)",
+    )
+    parser.add_argument(
+        "--hash-components",
+        "-hc",
+        type=int,
+        default=32,
+        help="Number of components/columns to use for hash encoding (default: 32)",
+    )
+    parser.add_argument(
+        "--categorical-features",
+        "-c",
+        nargs="+",
+        help="List all of your categorical feature column names in your dataset with this (e.g., gender occupation)",
+    )
+    parser.add_argument(
+        "--ordinal-features",
+        "-o",
+        nargs="+",
+        help="List all of the categorical features that have a natural order in your dataset with this (will be treated as ordinal)",
+    )
+    parser.add_argument(
+        "--handle-constant-features",
+        choices=["drop", "none"],
+        default="none",
+        help="How to handle constant features: 'drop' removes these columns, 'none' leaves features as is",
+    )
+    parser.add_argument(
+        "--handle-correlations",
+        choices=["drop_lowest", "drop_first", "pca", "none"],
+        default="none",
+        help="How to handle highly correlated features: 'drop_lowest' drops feature with lowest variance, 'drop_first' drops first feature in pair, 'pca' applies PCA to correlated features, 'none' leaves as is",
+    )
+    parser.add_argument(
+        "--correlation-threshold",
+        type=correlation_threshold_type,
+        default=0.95,
+        help="Threshold for identifying highly correlated features (default: 0.95)",
+    )
+    save_preprocessed_group = parser.add_mutually_exclusive_group()
+    save_preprocessed_group.add_argument(
+        "--save-preprocessed-to-file",
+        dest="save_preprocessed",
+        action="store_true",
+        default=True,
+        help="Save preprocessed data to a file (default: True)",
+    )
+    save_preprocessed_group.add_argument(
+        "--dont-save-preprocessed-to-file",
+        dest="save_preprocessed",
+        action="store_false",
+        help="Don't save preprocessed data to a file",
     )
     parser.set_defaults(func=commands.preprocess)
 
@@ -233,14 +296,14 @@ Examples:
         action="store_true",
         help="List all available balancing techniques",
     )
-    
+
     parser.add_argument(
         "-a",
         "--append",
         action="store_true",
         help="Add to existing techniques instead of replacing them",
     )
-    
+
     parser.set_defaults(func=commands.select_techniques)
 
 
@@ -278,63 +341,57 @@ Examples:
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     # Create main action group (file/folder vs removal)
     action_group = parser.add_mutually_exclusive_group(required=True)
-    
+
     # Add file path as a positional argument in the action group
     action_group.add_argument(
         "file_path",
         type=str,
         nargs="?",  # Make it optional
-        help="Path to the Python file containing the custom technique(s)"
+        help="Path to the Python file containing the custom technique(s)",
     )
-    
+
     # Add folder path as an option in the action group
     action_group.add_argument(
         "--folder-path",
         "-fp",
         type=str,
-        help="Path to a folder containing Python files with custom techniques"
+        help="Path to a folder containing Python files with custom techniques",
     )
-    
+
     # Add removal options to the action group
     action_group.add_argument(
-        "--remove",
-        "-r",
-        nargs="+",
-        help="Names of custom techniques to remove"
+        "--remove", "-r", nargs="+", help="Names of custom techniques to remove"
     )
-    
+
     action_group.add_argument(
-        "--remove-all",
-        "-ra",
-        action="store_true",
-        help="Remove all custom techniques"
+        "--remove-all", "-ra", action="store_true", help="Remove all custom techniques"
     )
-    
+
     # Options for registration (not in the mutually exclusive group)
     parser.add_argument(
         "--name",
         "-n",
         type=str,
-        help="Custom name to register the technique under (requires --class-name when file contains multiple techniques)"
+        help="Custom name to register the technique under (requires --class-name when file contains multiple techniques)",
     )
-    
+
     parser.add_argument(
         "--class-name",
         "-c",
         type=str,
-        help="Name of the specific class to register (required when --name is used and multiple classes exist)"
+        help="Name of the specific class to register (required when --name is used and multiple classes exist)",
     )
-    
+
     parser.add_argument(
         "--overwrite",
         "-o",
         action="store_true",
-        help="Overwrite existing technique with the same name if it exists"
+        help="Overwrite existing technique with the same name if it exists",
     )
-    
+
     parser.set_defaults(func=commands.register_techniques)
 
 
@@ -360,30 +417,30 @@ Examples:
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     group = parser.add_mutually_exclusive_group(required=True)
-    
+
     group.add_argument(
         "classifiers",
         nargs="*",
         help="Names of classifiers to use (use --list-available to see options)",
         default=[],
     )
-    
+
     group.add_argument(
         "-l",
         "--list-available",
         action="store_true",
         help="List all available classifiers",
     )
-    
+
     parser.add_argument(
         "-a",
         "--append",
         action="store_true",
         help="Add to existing classifiers instead of replacing them",
     )
-    
+
     parser.set_defaults(func=commands.select_classifier)
 
 
@@ -421,63 +478,57 @@ Examples:
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     # Create main action group (file/folder vs removal)
     action_group = parser.add_mutually_exclusive_group(required=True)
-    
+
     # Add file path as a positional argument in the action group
     action_group.add_argument(
         "file_path",
         type=str,
         nargs="?",  # Make it optional
-        help="Path to the Python file containing the custom classifier(s)"
+        help="Path to the Python file containing the custom classifier(s)",
     )
-    
+
     # Add folder path as an option in the action group
     action_group.add_argument(
         "--folder-path",
         "-fp",
         type=str,
-        help="Path to a folder containing Python files with custom classifiers"
+        help="Path to a folder containing Python files with custom classifiers",
     )
-    
+
     # Add removal options to the action group
     action_group.add_argument(
-        "--remove",
-        "-r",
-        nargs="+",
-        help="Names of custom classifiers to remove"
+        "--remove", "-r", nargs="+", help="Names of custom classifiers to remove"
     )
-    
+
     action_group.add_argument(
-        "--remove-all",
-        "-ra",
-        action="store_true",
-        help="Remove all custom classifiers"
+        "--remove-all", "-ra", action="store_true", help="Remove all custom classifiers"
     )
-    
+
     # Options for registration (not in the mutually exclusive group)
     parser.add_argument(
         "--name",
         "-n",
         type=str,
-        help="Custom name to register the classifier under (requires --class-name when file contains multiple classifiers)"
+        help="Custom name to register the classifier under (requires --class-name when file contains multiple classifiers)",
     )
-    
+
     parser.add_argument(
         "--class-name",
         "-c",
         type=str,
-        help="Name of the specific class to register (required when --name is used and multiple classes exist)"
+        help="Name of the specific class to register (required when --name is used and multiple classes exist)",
     )
-    
+
     parser.add_argument(
         "--overwrite",
         "-o",
         action="store_true",
-        help="Overwrite existing classifier with the same name if it exists"
+        help="Overwrite existing classifier with the same name if it exists",
     )
-    
+
     parser.set_defaults(func=commands.register_classifiers)
 
 
@@ -546,10 +597,10 @@ Examples:
         help="Types of visualisations to generate: 'metrics' (performance comparison), 'distribution' (class balance), 'learning_curves' (model performance vs. training size), 'all', or 'none'",
     )
     parser.add_argument(
-    "--display",
-    dest="display",
-    action="store_true",
-    help="Display visualisations on screen during execution",
+        "--display",
+        dest="display",
+        action="store_true",
+        help="Display visualisations on screen during execution",
     )
     parser.add_argument(
         "--no-display",
@@ -612,13 +663,13 @@ Examples:
         "--learning-curve-folds",
         type=int,
         default=5,
-        help="Number of cross-validation folds for learning curves (default: 5)"
-    )   
+        help="Number of cross-validation folds for learning curves (default: 5)",
+    )
     parser.add_argument(
         "--learning-curve-points",
         type=int,
         default=10,
-        help="Number of points to plot on learning curves (default: 10)"
+        help="Number of points to plot on learning curves (default: 10)",
     )
     parser.set_defaults(func=commands.configure_evaluation)
 

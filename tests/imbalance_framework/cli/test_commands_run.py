@@ -373,7 +373,10 @@ class TestRunComparisonDataLoading:
         mock_framework.preprocess_data.assert_called_once_with(
             handle_missing=full_config["preprocessing"]["handle_missing"],
             scale=full_config["preprocessing"]["scale"],
-            encode=full_config["preprocessing"]["encode"],
+            categorical_features={},
+            hash_components_dict={},
+            handle_constant_features=None,
+            handle_correlations=None,
         )
 
         # Verify log message

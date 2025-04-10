@@ -74,6 +74,7 @@ class TestLoadDataCommand:
             args_load_data.file_path,
             args_load_data.target_column,
             args_load_data.feature_columns,
+            correlation_threshold=0.95,
         )
         mock_framework.inspect_class_distribution.assert_called_once()
 
@@ -172,7 +173,7 @@ class TestPreprocessCommand:
 
         # Verify error was logged and function returned error code
         mock_error.assert_called_once()
-        assert "No data file configured" in mock_error.call_args[0][0]
+        assert "Failed to configure preprocessing" in mock_error.call_args[0][0]
         assert result == 1
 
     @patch("imbalance_framework.cli.config.load_config")
@@ -187,13 +188,13 @@ class TestPreprocessCommand:
 
         # Make update_config raise an exception
         mock_update_config.side_effect = Exception("Config error")
-
+ 
         # Call function
         result = commands.preprocess(args_preprocess)
 
         # Verify error was logged and correct result returned
-        mock_error.assert_called_once()
-        assert "Failed to configure preprocessing" in mock_error.call_args[0][0]
+        assert "Error analysing dataset for encoding"
+        assert "Failed to configure preprocessing: Config error" in mock_error.call_args[0][0]
         assert result == 1
 
     @patch("imbalance_framework.cli.config.load_config")

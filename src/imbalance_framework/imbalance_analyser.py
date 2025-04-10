@@ -41,13 +41,15 @@ class BalancingFramework:
         self.results = {}
         self.current_data_info = {}
         self.current_balanced_datasets = {}
+        self.quality_report = {}
 
     def load_data(
         self,
         file_path: Union[str, Path],
         target_column: str,
         feature_columns: Optional[List[str]] = None,
-        auto_preprocess: bool = True,
+        auto_preprocess: bool = False,
+        correlation_threshold: float = 0.95,
     ) -> None:
         """
         Load data from a file and optionally preprocess it.
@@ -78,8 +80,14 @@ class BalancingFramework:
         }
 
         # Check data quality
-        quality_report = self.preprocessor.check_data_quality(self.X)
-        self._handle_quality_issues(quality_report)
+        quality_report = self.preprocessor.check_data_quality(
+            self.X, feature_columns, correlation_threshold=correlation_threshold
+        )
+
+        self.quality_report = quality_report
+        self._handle_quality_issues(
+            quality_report, correlation_threshold=correlation_threshold
+        )
 
         if auto_preprocess:
             self.preprocess_data()
@@ -88,7 +96,10 @@ class BalancingFramework:
         self,
         handle_missing: str = "mean",
         scale: str = "standard",
-        encode: str = "auto",
+        handle_constant_features: str = "none",
+        handle_correlations: str = "none",
+        categorical_features: Optional[List[str]] = None,
+        hash_components_dict: Optional[Dict[str, int]] = None,
     ) -> None:
         """
         Preprocess the loaded data with enhanced options.
@@ -98,15 +109,48 @@ class BalancingFramework:
                 ("drop", "mean", "median", "mode", "none")
             scale: Scaling method
                 ("standard", "minmax", "robust", "none")
-            encode: Encoding method for categorical features
-                ("auto", "onehot", "label", "ordinal", "none")
+            handle_constant_features: Strategy to handle constant features
+                ("drop", "none")
+            handle_correlations: Strategy to handle highly correlated features
+                ("drop_first", "drop_lowest", "pca", "none")
+            categorical_features: List of column names for categorical features
+            hash_components_dict: Dictionary mapping feature names to number of hash components
         """
         if self.X is None or self.y is None:
             raise ValueError("No data loaded. Call load_data() first.")
 
+        # Extract constant features and correlated features from quality report
+        constant_features = []
+        if self.quality_report and "constant_features" in self.quality_report:
+            # Extract feature names from the constant_features list of tuples
+            constant_features = [
+                feature[0]
+                for feature in self.quality_report.get("constant_features", [])
+            ]
+
+        correlated_features = []
+        if self.quality_report and "feature_correlations" in self.quality_report:
+            # Extract correlation pairs from the feature_correlations list of tuples
+            correlated_features = self.quality_report.get("feature_correlations", [])
+
+        # Process the data using the preprocessor with all options
         self.X, self.y = self.preprocessor.preprocess(
-            self.X, self.y, handle_missing=handle_missing, scale=scale, encode=encode
+            self.X,
+            self.y,
+            handle_missing=handle_missing,
+            scale=scale,
+            handle_constant_features=handle_constant_features,
+            handle_correlations=handle_correlations,
+            constant_features=constant_features,
+            correlated_features=correlated_features,
+            all_features=self.current_data_info.get("feature_columns"),
+            categorical_features=categorical_features,
+            hash_components_dict=hash_components_dict,
         )
+
+        # Update feature columns in current_data_info with the new feature names
+        if hasattr(self.preprocessor, "feature_names"):
+            self.current_data_info["feature_columns"] = self.preprocessor.feature_names
 
     def inspect_class_distribution(
         self, save_path: Optional[str] = None, display: bool = False
@@ -549,26 +593,55 @@ class BalancingFramework:
         """Get the distribution of classes in the target variable."""
         return self.preprocessor.inspect_class_distribution(self.y)
 
-    def _handle_quality_issues(self, quality_report: Dict[str, Any]) -> None:
+    def _handle_quality_issues(
+        self, quality_report: Dict[str, Any], correlation_threshold: float = 0.95
+    ) -> None:
         """Handle any data quality issues found."""
         warnings = []
 
-        if quality_report["missing_values"].any():
-            warnings.append(
-                f"Data contains missing values: {quality_report['missing_values']}"
+        # Check if there are any missing values (now a list of tuples)
+        if quality_report["missing_values"]:
+            missing_value_info = ", ".join(
+                [f"{name}: {count}" for name, count in quality_report["missing_values"]]
             )
+            if len(quality_report["missing_values"]) == 1:
+                warnings.append(
+                    f"Data contains missing values in feature: {missing_value_info}"
+                )
+            else:
+                warnings.append(
+                    f"Data contains missing values in features: {missing_value_info}"
+                )
 
-        if quality_report["constant_features"].size > 0:
-            warnings.append(
-                f"Features {quality_report['constant_features']} have constant values"
-            )
+        # Check if there are any constant features (now a list of tuples)
+        if quality_report["constant_features"]:
+            # Extract feature names from the tuples
+            constant_feature_names = [
+                name for name, _ in quality_report["constant_features"]
+            ]
+            if len(constant_feature_names) == 1:
+                warnings.append(
+                    f"Constant Features: {constant_feature_names} has constant values"
+                )
+            else:
+                warnings.append(
+                    f"Constant Features: {constant_feature_names} have constant values"
+                )
 
+        # Check if there are any highly correlated features (already a list)
         if quality_report["feature_correlations"]:
+            # Format the correlation information more readably
+            correlation_info = ", ".join(
+                [
+                    f"{col1} & {col2} ({corr:.2f})"
+                    for col1, col2, corr in quality_report["feature_correlations"]
+                ]
+            )
             warnings.append(
-                "Found highly correlated features: "
-                f"{quality_report['feature_correlations']}"
+                f"Found highly correlated features (Threshold={correlation_threshold}): {correlation_info}"
             )
 
+        # Print all warnings
         if warnings:
             print("Data Quality Warnings:")
             for warning in warnings:

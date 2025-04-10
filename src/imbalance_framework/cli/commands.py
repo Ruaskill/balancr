@@ -11,10 +11,12 @@ import importlib
 import logging
 import json
 import inspect
+from data.preprocessor import DataPreprocessor
 import numpy as np
 from pathlib import Path
 
 from evaluation.visualisation import plot_comparison_results
+import pandas as pd
 
 from . import config
 from imbalance_framework.base import BaseBalancer
@@ -65,8 +67,18 @@ def load_data(args):
         if BalancingFramework is not None:
             # This is just a validation check, not storing the framework instance
             framework = BalancingFramework()
+
+            # Try to get correlation_threshold from config
+            try:
+                current_config = config.load_config(args.config_path)
+                correlation_threshold = current_config["preprocessing"].get("correlation_threshold", 0.95)
+            except Exception:
+                # Fall back to default if config can't be loaded or doesn't have the value
+                correlation_threshold = 0.95
+
+            print(f"Correlation Threshold: {correlation_threshold}")
             framework.load_data(
-                args.file_path, args.target_column, args.feature_columns
+                args.file_path, args.target_column, args.feature_columns, correlation_threshold=correlation_threshold
             )
 
             # Get and display class distribution
@@ -104,22 +116,79 @@ def preprocess(args):
     """
     logging.info("Configuring preprocessing options")
 
-    # Update configuration with preprocessing settings
+    # Initialise basic preprocessing settings
     settings = {
         "preprocessing": {
             "handle_missing": args.handle_missing,
+            "handle_constant_features": args.handle_constant_features,
+            "handle_correlations": args.handle_correlations,
+            "correlation_threshold": args.correlation_threshold,
             "scale": args.scale,
             "encode": args.encode,
+            "save_preprocessed": args.save_preprocessed,
         }
     }
 
     try:
         current_config = config.load_config(args.config_path)
 
-        # Ensure data file is configured
-        if "data_file" not in current_config:
-            logging.error("No data file configured. Run 'balancr load-data' first.")
-            return 1
+        # Check if categorical features are specified
+        if args.categorical_features:
+            # Process categorical features if a dataset is available
+            if "data_file" in current_config:
+                data_file = current_config["data_file"]
+                target_column = current_config.get("target_column")
+
+                logging.info(f"Loading dataset from {data_file} for encoding analysis")
+
+                try:
+                    # Initialise framework to load data
+                    # Read the dataset directly
+                    df = pd.read_csv(data_file)
+
+                    # Validate target column exists
+                    if target_column and target_column not in df.columns:
+                        logging.warning(
+                            f"Target column '{target_column}' not found in dataset"
+                        )
+
+                    # Create preprocessor and determine encoding types
+                    preprocessor = DataPreprocessor()
+                    categorical_encodings = preprocessor.assign_encoding_types(
+                        df=df,
+                        categorical_columns=args.categorical_features,
+                        encoding_type=args.encode,
+                        hash_components=args.hash_components,
+                        ordinal_columns=args.ordinal_features,
+                    )
+
+                    # Add categorical feature encodings to settings
+                    settings["preprocessing"][
+                        "categorical_features"
+                    ] = categorical_encodings
+
+                    # Display encoding recommendations
+                    print("\nCategorical feature encoding assignments:")
+                    for column, encoding in categorical_encodings.items():
+                        print(f"  {column}: {encoding}")
+                except Exception as e:
+                    logging.error(f"Error analysing dataset for encoding: {e}")
+                    logging.info(
+                        "Storing categorical features without encoding recommendations"
+                    )
+                    # If analysis fails, just store the categorical features with the default encoding
+                    settings["preprocessing"]["categorical_features"] = {
+                        col: args.encode for col in args.categorical_features
+                    }
+            else:
+                logging.warning(
+                    "No dataset configured. Cannot analyse categorical features."
+                )
+                logging.info("Storing categorical features with default encoding")
+                # Store categorical features with the specified encoding type
+                settings["preprocessing"]["categorical_features"] = {
+                    col: args.encode for col in args.categorical_features
+                }
 
         # Update config
         config.update_config(args.config_path, settings)
@@ -128,8 +197,18 @@ def preprocess(args):
         # Display the preprocessing settings
         print("\nPreprocessing Configuration:")
         print(f"  Handle Missing Values: {args.handle_missing}")
+        print(f"  Handle Constant Features: {args.handle_constant_features}")
+        print(f"  Handle Feature Correlations: {args.handle_correlations}")
+        print(f"  Correlation Threshold: {args.correlation_threshold}")
         print(f"  Feature Scaling: {args.scale}")
-        print(f"  Categorical Encoding: {args.encode}")
+        print(f"  Default Categorical Encoding: {args.encode}")
+        print(f"  Save Preprocessed Data to File: {args.save_preprocessed}")
+
+        if args.categorical_features:
+            print(f"  Categorical Features: {', '.join(args.categorical_features)}")
+
+        if args.ordinal_features:
+            print(f"  Ordinal Features: {', '.join(args.ordinal_features)}")
 
         return 0
 
@@ -1269,14 +1348,54 @@ def run_comparison(args):
 
             handle_missing = preproc.get("handle_missing", "mean")
             scale = preproc.get("scale", "standard")
-            encode = preproc.get("encode", "auto")
+            categorical_features = preproc.get("categorical_features", {})
+            handle_constant_features = preproc.get("handle_constant_features", None)
+            handle_correlations = preproc.get("handle_correlations", None)
+            save_preprocessed_file = preproc.get("save_preprocessed", True)
+
+            # Extract hash components information
+            hash_components_dict = {}
+            for feature, encoding in categorical_features.items():
+                if isinstance(encoding, list) and encoding[0] == "hash":
+                    hash_components_dict[feature] = encoding[1]  # Store the n_components value
 
             framework.preprocess_data(
                 handle_missing=handle_missing,
                 scale=scale,
-                encode=encode,
+                categorical_features=categorical_features,
+                hash_components_dict=hash_components_dict,
+                handle_constant_features=handle_constant_features,
+                handle_correlations=handle_correlations
             )
             logging.info("Data preprocessing applied")
+
+            # Save preprocessed dataset to a new file
+            if save_preprocessed_file:
+                try:
+                    if "data_file" in current_config and current_config["data_file"]:
+                        original_path = Path(current_config["data_file"])
+                        preprocessed_path = (
+                            original_path.parent
+                            / f"{original_path.stem}_preprocessed{original_path.suffix}"
+                        )
+
+                        # Copy DataFrame with the preprocessed data
+                        preprocessed_df = framework.X.copy()
+
+                        # Add the target column
+                        target_column = current_config.get("target_column")
+                        if target_column:
+                            preprocessed_df[target_column] = framework.y
+
+                        # Save to the new file
+                        if original_path.suffix.lower() == ".csv":
+                            preprocessed_df.to_csv(preprocessed_path, index=False)
+                        elif original_path.suffix.lower() in [".xlsx", ".xls"]:
+                            preprocessed_df.to_excel(preprocessed_path, index=False)
+
+                        logging.info(f"Saved preprocessed dataset to: {preprocessed_path}")
+                except Exception as e:
+                    logging.warning(f"Could not save preprocessed dataset: {e}")
 
         # Apply balancing techniques
         logging.info("Applying balancing techniques...")

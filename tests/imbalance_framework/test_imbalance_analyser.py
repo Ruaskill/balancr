@@ -373,7 +373,7 @@ def test_preprocess_data(framework, sample_data):
     assert framework.X is not None
     assert framework.y is not None
     # Check if data was scaled (mean should be close to 0)
-    assert abs(framework.X.mean()) < 1e-10
+    assert (framework.X.mean().abs() < 1e-10).all()
 
 
 def test_compare_techniques_no_data(framework):
@@ -540,8 +540,8 @@ def test_generate_learning_curves_no_data(framework):
 def test_handle_quality_issues(framework):
     """Test handling of data quality issues"""
     quality_report = {
-        "missing_values": np.array([True, False]),
-        "constant_features": np.array([0]),
+        "missing_values": [(0, 1)],  # row 0, column 1 missing
+        "constant_features": [("feature1", 0)],
         "feature_correlations": [("feature1", "feature2", 0.96)],
     }
 
