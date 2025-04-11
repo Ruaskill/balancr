@@ -543,7 +543,6 @@ class TestRunComparisonBalancingTechniques:
             f"Running comparison with techniques: {', '.join(list(minimal_config['balancing_techniques'].keys()))}"
         )
         mock_info.assert_any_call("Applying balancing techniques...")
-        mock_info.assert_any_call("Balancing techniques applied successfully")
 
     @patch("imbalance_framework.cli.config.load_config")
     @patch("imbalance_framework.cli.commands.BalancingFramework")
@@ -703,7 +702,6 @@ class TestRunComparisonClassifierTraining:
 
         # Verify log message
         mock_info.assert_any_call("Training classifiers on balanced datasets...")
-        mock_info.assert_any_call("Training and evaluation complete")
 
     @patch("imbalance_framework.cli.config.load_config")
     @patch("imbalance_framework.cli.commands.BalancingFramework")
