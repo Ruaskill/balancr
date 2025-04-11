@@ -155,28 +155,47 @@ def plot_comparison_results(
             f"No {metric_type} data found for classifier '{classifier_name}'"
         )
 
+    # Default metrics to plot
     if metrics_to_plot is None:
-        metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
+        if metric_type == "standard_metrics":
+            metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
+        elif metric_type == "cv_metrics":
+            # For CV metrics, we want to look for metrics with "cv_" prefix and "_mean" suffix
+            # But we want to use the same base metric names as configured
+            metrics_to_plot = ["cv_accuracy_mean", "cv_precision_mean", "cv_recall_mean", "cv_f1_mean"]
+        else:
+            metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
+    elif metric_type == "cv_metrics" and metrics_to_plot and not all(m.startswith("cv_") for m in metrics_to_plot):
+        # If user provided standard metric names but we're plotting CV metrics,
+        # convert them to CV metric names
+        metrics_to_plot = [f"cv_{m}_mean" for m in metrics_to_plot]
 
     # Filter metrics to only include those that exist in all techniques
     common_metrics = set.intersection(
         *[set(metrics.keys()) for metrics in plot_data.values()]
     )
-    metrics_to_plot = [m for m in metrics_to_plot if m in common_metrics]
+    available_metrics = [m for m in metrics_to_plot if m in common_metrics]
 
-    if not metrics_to_plot:
-        raise ValueError("No common metrics found across techniques")
+    if not available_metrics:
+        # Show all available metrics in the error message
+        raise ValueError(
+            f"No common metrics found across techniques for metric type '{metric_type}'. "
+            f"Requested metrics: {metrics_to_plot}, Available metrics: {sorted(common_metrics)}"
+        )
 
     # Convert results to suitable format for plotting
     techniques = list(plot_data.keys())
     metrics_data = {
         metric: [plot_data[tech][metric] for tech in techniques]
-        for metric in metrics_to_plot
+        for metric in available_metrics
     }
 
-    # Create subplot for each metric
-    n_metrics = len(metrics_to_plot)
-    fig, axes = plt.subplots(2, (n_metrics + 1) // 2, figsize=(15, 10), squeeze=False)
+    # Create subplot grid that accommodates all metrics
+    n_metrics = len(available_metrics)
+    n_cols = min(3, n_metrics)  # Maximum 3 columns to ensure readability
+    n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 5*n_rows), squeeze=False)
     fig.suptitle(
         f"{classifier_name} - Comparison of Balancing Techniques ({metric_type.replace('_', ' ').title()})",
         size=16,
@@ -184,12 +203,21 @@ def plot_comparison_results(
 
     # Plot each metric
     for idx, (metric, values) in enumerate(metrics_data.items()):
-        row = idx // 2
-        col = idx % 2
+        row = idx // n_cols
+        col = idx % n_cols
         ax = axes[row, col]
 
         sns.barplot(x=techniques, y=values, ax=ax)
-        ax.set_title(f'{metric.replace("_", " ").title()}')
+        
+        # Set appropriate title based on metric type
+        if metric.startswith("cv_") and metric.endswith("_mean"):
+            # For CV metrics, show "Metric Mean" format
+            base_metric = metric[3:-5]  # Remove 'cv_' prefix and '_mean' suffix
+            display_title = f'{base_metric.replace("_", " ").title()} Mean'
+        else:
+            display_title = metric.replace("_", " ").title()
+            
+        ax.set_title(display_title)
         plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
         # Add value labels on top of bars
@@ -198,8 +226,8 @@ def plot_comparison_results(
 
     # Remove any empty subplots
     for idx in range(len(metrics_data), axes.shape[0] * axes.shape[1]):
-        row = idx // 2
-        col = idx % 2
+        row = idx // n_cols
+        col = idx % n_cols
         fig.delaxes(axes[row, col])
 
     plt.tight_layout()

@@ -1455,10 +1455,11 @@ def run_comparison(args):
                 framework.inspect_class_distribution(
                     save_path=str(imbalanced_plot_path), display=display_visualisations
                 )
+                logging.info(f"Imbalanced class distribution saved to {imbalanced_plot_path}")
 
                 # Balanced class distributions comparison
                 logging.info(
-                    f"Generating balanced class distribution comparison in {format_type}..."
+                    f"Generating balanced class distribution comparison in {format_type} format..."
                 )
                 balanced_plot_path = (
                     output_dir / f"balanced_class_distribution.{format_type}"
@@ -1467,6 +1468,7 @@ def run_comparison(args):
                     save_path=str(balanced_plot_path),
                     display=display_visualisations,
                 )
+                logging.info(f"Balanaced class distribution comparison saved to {balanced_plot_path}")
 
         # Train classifiers
         start_time = time.time()
@@ -1528,11 +1530,17 @@ def run_comparison(args):
                         f"Generating metrics comparison for {classifier_name} in {format_type} format..."
                     )
 
+                    metrics_to_plot = current_config.get("output", {}).get("metrics",
+                                                                           ["precision",
+                                                                            "recall",
+                                                                            "f1",
+                                                                            "roc_auc"])
                     # Call a modified plot_comparison_results that can handle specific classifier data
                     plot_comparison_results(
                         results,
                         classifier_name=classifier_name,
                         metric_type="standard_metrics",
+                        metrics_to_plot=metrics_to_plot,
                         save_path=str(metrics_path),
                         display=display_visualisations,
                     )
@@ -1573,6 +1581,10 @@ def run_comparison(args):
         if cv_enabled:
             cv_start_time = time.time()
             for classifier_name in current_config.get("classifiers", {}):
+                # Create classifier-specific directory
+                classifier_dir = output_dir / classifier_name
+                classifier_dir.mkdir(exist_ok=True)
+
                 cv_metrics_dir = classifier_dir / "cv_metrics"
                 cv_metrics_dir.mkdir(exist_ok=True)
 
@@ -1608,10 +1620,16 @@ def run_comparison(args):
                             f"Generating CV metrics comparison for {classifier_name} in {format_type} format..."
                         )
 
+                        metrics_to_plot = current_config.get("output", {}).get("metrics",
+                                                                               ["precision",
+                                                                                "recall",
+                                                                                "f1",
+                                                                                "roc_auc"])
                         plot_comparison_results(
                             results,
                             classifier_name=classifier_name,
                             metric_type="cv_metrics",
+                            metrics_to_plot=metrics_to_plot,
                             save_path=str(cv_metrics_path),
                             display=display_visualisations,
                         )
