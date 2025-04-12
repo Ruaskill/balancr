@@ -162,10 +162,19 @@ def plot_comparison_results(
         elif metric_type == "cv_metrics":
             # For CV metrics, we want to look for metrics with "cv_" prefix and "_mean" suffix
             # But we want to use the same base metric names as configured
-            metrics_to_plot = ["cv_accuracy_mean", "cv_precision_mean", "cv_recall_mean", "cv_f1_mean"]
+            metrics_to_plot = [
+                "cv_accuracy_mean",
+                "cv_precision_mean",
+                "cv_recall_mean",
+                "cv_f1_mean",
+            ]
         else:
             metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
-    elif metric_type == "cv_metrics" and metrics_to_plot and not all(m.startswith("cv_") for m in metrics_to_plot):
+    elif (
+        metric_type == "cv_metrics"
+        and metrics_to_plot
+        and not all(m.startswith("cv_") for m in metrics_to_plot)
+    ):
         # If user provided standard metric names but we're plotting CV metrics,
         # convert them to CV metric names
         metrics_to_plot = [f"cv_{m}_mean" for m in metrics_to_plot]
@@ -194,8 +203,10 @@ def plot_comparison_results(
     n_metrics = len(available_metrics)
     n_cols = min(3, n_metrics)  # Maximum 3 columns to ensure readability
     n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
-    
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 5*n_rows), squeeze=False)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows), squeeze=False
+    )
     fig.suptitle(
         f"{classifier_name} - Comparison of Balancing Techniques ({metric_type.replace('_', ' ').title()})",
         size=16,
@@ -208,7 +219,7 @@ def plot_comparison_results(
         ax = axes[row, col]
 
         sns.barplot(x=techniques, y=values, ax=ax)
-        
+
         # Set appropriate title based on metric type
         if metric.startswith("cv_") and metric.endswith("_mean"):
             # For CV metrics, show "Metric Mean" format
@@ -216,7 +227,7 @@ def plot_comparison_results(
             display_title = f'{base_metric.replace("_", " ").title()} Mean'
         else:
             display_title = metric.replace("_", " ").title()
-            
+
         ax.set_title(display_title)
         plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
 
