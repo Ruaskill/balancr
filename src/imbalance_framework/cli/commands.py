@@ -1673,7 +1673,7 @@ def run_comparison(args):
         logging.info(f"Total execution time: {format_time(total_time)}")
 
         # Print summary of timing results
-        print("\nExecution Time Summary:")
+        print("\nExecution Time Summary:\n")
         print(f"  Data Loading:        {format_time(load_time)}")
         print(f"  Balancing:           {format_time(balancing_time)}")
         print(f"  Training Classifiers: {format_time(training_time)}")
