@@ -162,6 +162,7 @@ def get_cv_scores(
 ) -> Dict[str, float]:
     """
     Perform cross-validation and return average scores.
+    Automatically handles multiclass data by using macro averaging.
 
     Args:
         classifier: Classifier instance to evaluate
@@ -172,11 +173,30 @@ def get_cv_scores(
     Returns:
         Dictionary containing average metric scores
     """
+    # Determine if we're dealing with multiclass data
+    unique_classes = np.unique(y_balanced)
+    is_multiclass = len(unique_classes) > 2
+
     # Calculate different metrics using cross-validation
     metrics = {}
-    for metric in ["accuracy", "precision", "recall", "f1"]:
+
+    # Accuracy doesn't need special handling for multiclass
+    scores = cross_val_score(
+        classifier, X_balanced, y_balanced, cv=n_folds, scoring="accuracy"
+    )
+    metrics["cv_accuracy_mean"] = scores.mean()
+    metrics["cv_accuracy_std"] = scores.std()
+
+    # For metrics that need proper multiclass handling
+    for metric in ["precision", "recall", "f1"]:
+        # Use macro averaging for multiclass problems
+        if is_multiclass:
+            scoring = f"{metric}_macro"
+        else:
+            scoring = metric
+
         scores = cross_val_score(
-            classifier, X_balanced, y_balanced, cv=n_folds, scoring=metric
+            classifier, X_balanced, y_balanced, cv=n_folds, scoring=scoring
         )
         metrics[f"cv_{metric}_mean"] = scores.mean()
         metrics[f"cv_{metric}_std"] = scores.std()
