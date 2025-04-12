@@ -72,14 +72,19 @@ def load_data(args):
             # Try to get correlation_threshold from config
             try:
                 current_config = config.load_config(args.config_path)
-                correlation_threshold = current_config["preprocessing"].get("correlation_threshold", 0.95)
+                correlation_threshold = current_config["preprocessing"].get(
+                    "correlation_threshold", 0.95
+                )
             except Exception:
                 # Fall back to default if config can't be loaded or doesn't have the value
                 correlation_threshold = 0.95
 
             print(f"Correlation Threshold: {correlation_threshold}")
             framework.load_data(
-                args.file_path, args.target_column, args.feature_columns, correlation_threshold=correlation_threshold
+                args.file_path,
+                args.target_column,
+                args.feature_columns,
+                correlation_threshold=correlation_threshold,
             )
 
             # Get and display class distribution
@@ -1370,7 +1375,9 @@ def run_comparison(args):
             hash_components_dict = {}
             for feature, encoding in categorical_features.items():
                 if isinstance(encoding, list) and encoding[0] == "hash":
-                    hash_components_dict[feature] = encoding[1]  # Store the n_components value
+                    hash_components_dict[feature] = encoding[
+                        1
+                    ]  # Store the n_components value
 
             framework.preprocess_data(
                 handle_missing=handle_missing,
@@ -1378,7 +1385,7 @@ def run_comparison(args):
                 categorical_features=categorical_features,
                 hash_components_dict=hash_components_dict,
                 handle_constant_features=handle_constant_features,
-                handle_correlations=handle_correlations
+                handle_correlations=handle_correlations,
             )
             logging.info("Data preprocessing applied")
 
@@ -1406,7 +1413,9 @@ def run_comparison(args):
                         elif original_path.suffix.lower() in [".xlsx", ".xls"]:
                             preprocessed_df.to_excel(preprocessed_path, index=False)
 
-                        logging.info(f"Saved preprocessed dataset to: {preprocessed_path}")
+                        logging.info(
+                            f"Saved preprocessed dataset to: {preprocessed_path}"
+                        )
                 except Exception as e:
                     logging.warning(f"Could not save preprocessed dataset: {e}")
 
@@ -1420,7 +1429,9 @@ def run_comparison(args):
             technique_params=balancing_techniques,
         )
         balancing_time = time.time() - start_time
-        logging.info(f"Balancing techniques applied successfully (Time Taken: {format_time(balancing_time)})")
+        logging.info(
+            f"Balancing techniques applied successfully (Time Taken: {format_time(balancing_time)})"
+        )
 
         # Save balanced datasets at the root level
         balanced_dir = output_dir / "balanced_datasets"
@@ -1455,7 +1466,9 @@ def run_comparison(args):
                 framework.inspect_class_distribution(
                     save_path=str(imbalanced_plot_path), display=display_visualisations
                 )
-                logging.info(f"Imbalanced class distribution saved to {imbalanced_plot_path}")
+                logging.info(
+                    f"Imbalanced class distribution saved to {imbalanced_plot_path}"
+                )
 
                 # Balanced class distributions comparison
                 logging.info(
@@ -1468,7 +1481,9 @@ def run_comparison(args):
                     save_path=str(balanced_plot_path),
                     display=display_visualisations,
                 )
-                logging.info(f"Balanaced class distribution comparison saved to {balanced_plot_path}")
+                logging.info(
+                    f"Balanaced class distribution comparison saved to {balanced_plot_path}"
+                )
 
         # Train classifiers
         start_time = time.time()
@@ -1485,7 +1500,9 @@ def run_comparison(args):
         )
 
         training_time = time.time() - start_time
-        logging.info(f"Training classifiers complete (Time Taken: {format_time(training_time)})")
+        logging.info(
+            f"Training classifiers complete (Time Taken: {format_time(training_time)})"
+        )
 
         # Process each classifier and save its results in a separate directory
         standard_start_time = time.time()
@@ -1530,11 +1547,9 @@ def run_comparison(args):
                         f"Generating metrics comparison for {classifier_name} in {format_type} format..."
                     )
 
-                    metrics_to_plot = current_config.get("output", {}).get("metrics",
-                                                                           ["precision",
-                                                                            "recall",
-                                                                            "f1",
-                                                                            "roc_auc"])
+                    metrics_to_plot = current_config.get("output", {}).get(
+                        "metrics", ["precision", "recall", "f1", "roc_auc"]
+                    )
                     # Call a modified plot_comparison_results that can handle specific classifier data
                     plot_comparison_results(
                         results,
@@ -1572,10 +1587,14 @@ def run_comparison(args):
                         display=display_visualisations,
                     )
                     learning_curves_time = time.time() - start_time
-                    logging.info(f"Successfully generated learning curves for {classifier_name}"
-                                 f"(Time Taken: {format_time(learning_curves_time)})")
+                    logging.info(
+                        f"Successfully generated learning curves for {classifier_name}"
+                        f"(Time Taken: {format_time(learning_curves_time)})"
+                    )
         standard_total_time = time.time() - standard_start_time
-        logging.info(f"Standard metrics evaluation total time: {format_time(standard_total_time)}")
+        logging.info(
+            f"Standard metrics evaluation total time: {format_time(standard_total_time)}"
+        )
 
         # If cross-validation is enabled, create CV metrics directory and save results
         if cv_enabled:
@@ -1620,11 +1639,9 @@ def run_comparison(args):
                             f"Generating CV metrics comparison for {classifier_name} in {format_type} format..."
                         )
 
-                        metrics_to_plot = current_config.get("output", {}).get("metrics",
-                                                                               ["precision",
-                                                                                "recall",
-                                                                                "f1",
-                                                                                "roc_auc"])
+                        metrics_to_plot = current_config.get("output", {}).get(
+                            "metrics", ["precision", "recall", "f1", "roc_auc"]
+                        )
                         plot_comparison_results(
                             results,
                             classifier_name=classifier_name,
@@ -1664,10 +1681,14 @@ def run_comparison(args):
                             display=display_visualisations,
                         )
                         cv_learning_curves_time = time.time() - start_time
-                        logging.info(f"Successfully generated cv learning curves for {classifier_name}"
-                                     f"(Time Taken: {format_time(cv_learning_curves_time)})")
+                        logging.info(
+                            f"Successfully generated cv learning curves for {classifier_name}"
+                            f"(Time Taken: {format_time(cv_learning_curves_time)})"
+                        )
             cv_total_time = time.time() - cv_start_time
-            logging.info(f"Cross validation metrics evaluation total time: {format_time(cv_total_time)}")
+            logging.info(
+                f"Cross validation metrics evaluation total time: {format_time(cv_total_time)}"
+            )
 
         total_time = time.time() - start_time_total
         logging.info(f"Total execution time: {format_time(total_time)}")
@@ -1682,17 +1703,65 @@ def run_comparison(args):
             print(f"  CV Metrics Evaluation: {format_time(cv_total_time)}")
         print(f"  Total Time:          {format_time(total_time)}")
 
-        # Print summary of results
         print("\nResults Summary:")
-        for classifier_name, classifier_results in results.items():
-            print(f"\n{classifier_name}:")
-            for technique_name, technique_metrics in classifier_results.items():
-                print(f"  {technique_name}:")
-                if "standard_metrics" in technique_metrics:
-                    std_metrics = technique_metrics["standard_metrics"]
-                    for metric_name, value in std_metrics.items():
-                        if metric_name in metrics:
-                            print(f"    {metric_name}: {value:.4f}")
+
+        # Check and print Standard Metrics if available
+        has_standard_metrics = any(
+            "standard_metrics" in technique_metrics
+            and any(m in metrics for m in technique_metrics["standard_metrics"])
+            for classifier_results in results.values()
+            for technique_metrics in classifier_results.values()
+        )
+
+        if has_standard_metrics:
+            print("\nStandard Metrics:")
+            for classifier_name, classifier_results in results.items():
+                print(f"\n{classifier_name}:")
+                for technique_name, technique_metrics in classifier_results.items():
+                    if "standard_metrics" in technique_metrics:
+                        std_metrics = technique_metrics["standard_metrics"]
+                        if any(m in metrics for m in std_metrics):
+                            print(f"  {technique_name}:")
+                            for metric_name, value in std_metrics.items():
+                                if metric_name in metrics:
+                                    print(f"    {metric_name}: {value:.4f}")
+
+        # Check and print Cross Validation Metrics if available
+        has_cv_metrics = any(
+            "cv_metrics" in technique_metrics
+            and any(
+                metric_name.startswith("cv_")
+                and metric_name[len("cv_") :].rsplit("_", 1)[0] in metrics
+                for metric_name in technique_metrics["cv_metrics"]
+            )
+            for classifier_results in results.values()
+            for technique_metrics in classifier_results.values()
+        )
+
+        if has_cv_metrics:
+            print("\nCross Validation Metrics:")
+            for classifier_name, classifier_results in results.items():
+                print(f"\n{classifier_name}:")
+                for technique_name, technique_metrics in classifier_results.items():
+                    if "cv_metrics" in technique_metrics:
+                        cv_metrics = technique_metrics["cv_metrics"]
+
+                        # Check if any relevant cv metric exists for this technique
+                        if any(
+                            metric_name.startswith("cv_")
+                            and metric_name[len("cv_") :].rsplit("_", 1)[0] in metrics
+                            for metric_name in cv_metrics
+                        ):
+                            print(f"  {technique_name}:")
+
+                            # Now print only relevant metrics
+                            for metric_name, value in cv_metrics.items():
+                                if metric_name.startswith("cv_"):
+                                    base_name = metric_name[len("cv_") :].rsplit(
+                                        "_", 1
+                                    )[0]
+                                    if base_name in metrics:
+                                        print(f"    {metric_name}: {value:.4f}")
 
         print(f"\nDetailed results saved to: {output_dir}")
         return 0
