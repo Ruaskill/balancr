@@ -1731,7 +1731,7 @@ def run_comparison(args):
             "cv_metrics" in technique_metrics
             and any(
                 metric_name.startswith("cv_")
-                and metric_name[len("cv_") :].rsplit("_", 1)[0] in metrics
+                and metric_name[len("cv_"):].rsplit("_", 1)[0] in metrics
                 for metric_name in technique_metrics["cv_metrics"]
             )
             for classifier_results in results.values()
@@ -1749,7 +1749,7 @@ def run_comparison(args):
                         # Check if any relevant cv metric exists for this technique
                         if any(
                             metric_name.startswith("cv_")
-                            and metric_name[len("cv_") :].rsplit("_", 1)[0] in metrics
+                            and metric_name[len("cv_"):].rsplit("_", 1)[0] in metrics
                             for metric_name in cv_metrics
                         ):
                             print(f"  {technique_name}:")
@@ -1757,7 +1757,7 @@ def run_comparison(args):
                             # Now print only relevant metrics
                             for metric_name, value in cv_metrics.items():
                                 if metric_name.startswith("cv_"):
-                                    base_name = metric_name[len("cv_") :].rsplit(
+                                    base_name = metric_name[len("cv_"):].rsplit(
                                         "_", 1
                                     )[0]
                                     if base_name in metrics:
