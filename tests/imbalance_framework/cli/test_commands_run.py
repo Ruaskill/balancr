@@ -896,7 +896,9 @@ class TestRunComparisonVisualisations:
             mock_framework, "compare_balanced_class_distributions"
         ), patch.object(
             mock_framework, "generate_learning_curves"
-        ):
+        ), patch(
+            "imbalance_framework.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
+        ) as mock_radar_chart:
             # Run comparison with normal full completion expected
             commands.run_comparison(args_run_comparison)
 
@@ -906,13 +908,26 @@ class TestRunComparisonVisualisations:
                 if format_type == "none":
                     continue
 
-                # Check for metrics comparison plots
+                # Look for either metrics_comparison OR radar_chart calls
                 metrics_calls = [
                     call
                     for call in mock_visualisation_functions.call_args_list
                     if classifier_name in str(call)
-                    and f"metrics_comparison.{format_type}" in str(call)
+                    and (
+                        f"metrics_comparison.{format_type}" in str(call)
+                        or f"radar_chart.{format_type}" in str(call)
+                    )
                 ]
+
+                # If no metrics_comparison calls, check for radar_chart calls
+                if not metrics_calls:
+                    metrics_calls = [
+                        call
+                        for call in mock_radar_chart.call_args_list
+                        if classifier_name in str(call)
+                        and f".{format_type}" in str(call)
+                    ]
+
                 assert len(metrics_calls) > 0
 
     @patch("imbalance_framework.cli.config.load_config")
@@ -980,12 +995,18 @@ class TestRunComparisonVisualisations:
             mock_framework, "generate_learning_curves"
         ), patch(
             "imbalance_framework.cli.commands.plot_comparison_results"
-        ):
+        ), patch(
+            "imbalance_framework.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
+        ) as mock_radar_chart:
             # Run comparison with normal full completion expected
             commands.run_comparison(args_run_comparison)
 
         # Verify display=True was passed to visualisation functions
         for call_args in mock_framework.inspect_class_distribution.call_args_list:
+            kwargs = call_args[1]
+            assert kwargs.get("display") is True
+
+        for call_args in mock_radar_chart:
             kwargs = call_args[1]
             assert kwargs.get("display") is True
 

@@ -7,6 +7,7 @@ from evaluation.visualisation import (
     plot_class_distributions_comparison,
     plot_comparison_results,
     plot_learning_curves,
+    plot_radar_chart,
 )
 
 
@@ -170,3 +171,108 @@ def test_plot_learning_curves_invalid_input():
 
     with pytest.raises(TypeError):
         plot_learning_curves(None)
+
+
+@patch("matplotlib.pyplot.show")
+def test_plot_radar_chart(mock_show, sample_results, temp_path):
+    """Test if plot_radar_chart runs without errors and saves files correctly"""
+    # Test with display=True
+    plot_radar_chart(
+        sample_results,
+        classifier_name="RandomForestClassifier",
+        metric_type="standard_metrics",
+        display=True,
+    )
+    mock_show.assert_called_once()
+    mock_show.reset_mock()
+
+    # Test with saving
+    save_path = temp_path / "radar_chart.png"
+    os.makedirs(temp_path, exist_ok=True)
+    plot_radar_chart(
+        sample_results,
+        classifier_name="RandomForestClassifier",
+        metric_type="standard_metrics",
+        save_path=str(save_path),
+    )
+    assert save_path.exists()
+    mock_show.assert_not_called()
+
+    # Test with custom metrics
+    custom_metrics = ["precision", "recall", "f1"]
+    save_path = temp_path / "custom_radar_chart.png"
+    plot_radar_chart(
+        sample_results,
+        classifier_name="RandomForestClassifier",
+        metric_type="standard_metrics",
+        metrics_to_plot=custom_metrics,
+        save_path=str(save_path),
+    )
+    assert save_path.exists()
+
+    # Test with CV metrics
+    cv_results = {
+        "RandomForestClassifier": {
+            "SMOTE": {
+                "cv_metrics": {
+                    "cv_accuracy_mean": 0.85,
+                    "cv_accuracy_std": 0.05,
+                    "cv_precision_mean": 0.83,
+                    "cv_precision_std": 0.06,
+                    "cv_recall_mean": 0.81,
+                    "cv_recall_std": 0.07,
+                    "cv_f1_mean": 0.82,
+                    "cv_f1_std": 0.05,
+                }
+            },
+            "RandomUnderSampler": {
+                "cv_metrics": {
+                    "cv_accuracy_mean": 0.80,
+                    "cv_accuracy_std": 0.07,
+                    "cv_precision_mean": 0.79,
+                    "cv_precision_std": 0.08,
+                    "cv_recall_mean": 0.82,
+                    "cv_recall_std": 0.06,
+                    "cv_f1_mean": 0.80,
+                    "cv_f1_std": 0.07,
+                }
+            },
+        }
+    }
+
+    save_path = temp_path / "cv_radar_chart.png"
+    plot_radar_chart(
+        cv_results,
+        classifier_name="RandomForestClassifier",
+        metric_type="cv_metrics",
+        save_path=str(save_path),
+    )
+    assert save_path.exists()
+
+
+def test_plot_radar_chart_invalid_input():
+    """Test if plot_radar_chart handles invalid input correctly"""
+    # Test with None results
+    with pytest.raises(TypeError):
+        plot_radar_chart(None, classifier_name="SomeClassifier")
+
+    # Test with non-existent classifier
+    with pytest.raises(ValueError):
+        plot_radar_chart({}, classifier_name="NonExistentClassifier")
+
+    # Test with no data for the specified metric type
+    results = {"SomeClassifier": {"SomeTechnique": {"other_metrics": {}}}}
+    with pytest.raises(ValueError):
+        plot_radar_chart(results, classifier_name="SomeClassifier")
+
+    # Test with no common metrics
+    results = {
+        "SomeClassifier": {
+            "Technique1": {"standard_metrics": {"metric1": 0.8}},
+            "Technique2": {"standard_metrics": {"metric2": 0.7}},
+        }
+    }
+    with pytest.raises(ValueError):
+        plot_radar_chart(
+            results, classifier_name="SomeClassifier", metrics_to_plot=["metric3"]
+        )

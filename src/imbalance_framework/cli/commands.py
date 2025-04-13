@@ -16,7 +16,10 @@ from data.preprocessor import DataPreprocessor
 import numpy as np
 from pathlib import Path
 
-from evaluation.visualisation import plot_comparison_results
+from evaluation.visualisation import (
+    plot_comparison_results,
+    plot_radar_chart,
+    )
 import pandas as pd
 
 from . import config
@@ -1559,6 +1562,17 @@ def run_comparison(args):
                         display=display_visualisations,
                     )
 
+                    if ("radar" in vis_types_to_generate or "all" in visualisations):
+                        std_radar_path = classifier_dir / "standard_metrics_radar.png"
+                        plot_radar_chart(
+                            results,
+                            classifier_name=classifier_name,
+                            metric_type="standard_metrics",
+                            metrics_to_plot=metrics_to_plot,
+                            save_path=std_radar_path,
+                            display=display_visualisations,
+                        )
+
                 if (
                     "learning_curves" in vis_types_to_generate
                     or "all" in visualisations
@@ -1649,6 +1663,17 @@ def run_comparison(args):
                             save_path=str(cv_metrics_path),
                             display=display_visualisations,
                         )
+
+                        if ("radar" in vis_types_to_generate or "all" in visualisations):
+                            cv_radar_path = classifier_dir / "cv_metrics_radar.png"
+                            plot_radar_chart(
+                                results,
+                                classifier_name=classifier_name,
+                                metric_type="cv_metrics",
+                                metrics_to_plot=metrics_to_plot,
+                                save_path=cv_radar_path,
+                                display=display_visualisations,
+                            )
 
                     if (
                         "learning_curves" in vis_types_to_generate

@@ -330,3 +330,153 @@ def plot_learning_curves(
         plt.show()
 
     plt.close()
+
+
+def plot_radar_chart(
+    results: Dict[str, Dict[str, Dict[str, Dict[str, float]]]],
+    classifier_name: str,
+    metric_type: str = "standard_metrics",
+    metrics_to_plot: Optional[list] = None,
+    save_path: Optional[str] = None,
+    display: bool = False,
+) -> None:
+    """
+    Plot radar (spider) chart comparing balancing techniques for a specific classifier.
+
+    Args:
+        results: Dictionary containing nested results structure
+                 {classifier_name: {technique_name: {metric_type: {metric_name: value}}}}
+        classifier_name: Name of the classifier to visualise
+        metric_type: Type of metrics to plot ('standard_metrics' or 'cv_metrics')
+        metrics_to_plot: List of metrics to include in the radar chart
+        save_path: Path to save the plot
+        display: Whether to display the plot
+    """
+    if results is None:
+        raise TypeError("Results dictionary cannot be None")
+
+    if classifier_name not in results:
+        raise ValueError(f"Classifier '{classifier_name}' not found in results")
+
+    # Extract the classifier's results
+    classifier_results = results[classifier_name]
+
+    # Create a structure for plotting with techniques as keys and metric dictionaries as values
+    plot_data = {}
+    for technique_name, technique_data in classifier_results.items():
+        if metric_type in technique_data:
+            plot_data[technique_name] = technique_data[metric_type]
+
+    if not plot_data:
+        raise ValueError(
+            f"No {metric_type} data found for classifier '{classifier_name}'"
+        )
+
+    # Default metrics to plot
+    if metrics_to_plot is None:
+        if metric_type == "standard_metrics":
+            metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
+        elif metric_type == "cv_metrics":
+            # For CV metrics, we're interested in mean values, not std
+            metrics_to_plot = [
+                "cv_accuracy_mean",
+                "cv_precision_mean",
+                "cv_recall_mean",
+                "cv_f1_mean",
+            ]
+        else:
+            metrics_to_plot = ["precision", "recall", "f1", "roc_auc"]
+    elif (
+        metric_type == "cv_metrics"
+        and metrics_to_plot
+        and not all(m.startswith("cv_") for m in metrics_to_plot)
+    ):
+        # If user provided standard metric names but we're plotting CV metrics,
+        # convert them to CV metric names with _mean suffix
+        metrics_to_plot = [f"cv_{m}_mean" for m in metrics_to_plot]
+
+    # Filter metrics to only include those that exist in all techniques
+    common_metrics = set.intersection(
+        *[set(metrics.keys()) for metrics in plot_data.values()]
+    )
+    available_metrics = [m for m in metrics_to_plot if m in common_metrics]
+
+    if not available_metrics:
+        # Show all available metrics in the error message
+        raise ValueError(
+            f"No common metrics found across techniques for metric type '{metric_type}'. "
+            f"Requested metrics: {metrics_to_plot}, Available metrics: {sorted(common_metrics)}"
+        )
+
+    # Create the figure and polar axis
+    fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(polar=True))
+
+    # Calculate angles for each metric (evenly spaced around the circle)
+    angles = np.linspace(0, 2 * np.pi, len(available_metrics), endpoint=False).tolist()
+
+    # Make the plot circular by appending the start point at the end
+    angles += angles[:1]
+
+    # Add metric labels
+    metric_labels = []
+    for metric in available_metrics:
+        # Format the metric name for display
+        if (
+            metric_type == "cv_metrics"
+            and metric.startswith("cv_")
+            and metric.endswith("_mean")
+        ):
+            # For CV metrics, show "Metric Mean" format
+            base_metric = metric[3:-5]  # Remove 'cv_' prefix and '_mean' suffix
+            display_label = f'{base_metric.replace("_", " ").title()}'
+        else:
+            display_label = metric.replace("_", " ").title()
+        metric_labels.append(display_label)
+
+    # Set radar chart labels at appropriate angles
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(metric_labels)
+
+    # Get color map for different techniques
+    # Use matplotlib.colormaps instead of deprecated plt.cm.get_cmap
+    import matplotlib as mpl
+    if hasattr(mpl, 'colormaps'):  # Matplotlib 3.7+
+        cmap = mpl.colormaps['tab10']
+    else:  # Fallback for older versions
+        cmap = plt.get_cmap('tab10')
+
+    # Plot each technique
+    for i, (technique_name, metrics) in enumerate(plot_data.items()):
+        # Extract values for the metrics we want to plot
+        values = [metrics[metric] for metric in available_metrics]
+
+        # Make values circular
+        values += values[:1]
+
+        # Plot the technique
+        color = cmap(i)
+        ax.plot(angles, values, "o-", linewidth=2, label=technique_name, color=color)
+        ax.fill(angles, values, alpha=0.1, color=color)
+
+    # Set title
+    title_type = (
+        "Cross-Validation Metrics"
+        if metric_type == "cv_metrics"
+        else "Standard Metrics"
+    )
+    title = f"{classifier_name} - {title_type}"
+    ax.set_title(title, size=15)
+
+    # Add a legend
+    ax.legend(loc="upper right", bbox_to_anchor=(1.3, 1.0))
+
+    # Adjust layout
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path)
+
+    if display:
+        plt.show()
+
+    plt.close()
