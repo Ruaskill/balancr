@@ -123,7 +123,7 @@ def test_get_learning_curve_data_multiple_techniques(sample_data, classifier):
     }
 
     learning_curves = get_learning_curve_data_multiple_techniques(
-        classifier, techniques_data, train_sizes=np.linspace(0.2, 1.0, 5)
+        "RandomForestClassifier", classifier, techniques_data, train_sizes=np.linspace(0.2, 1.0, 5)
     )
 
     # Check if all techniques are present

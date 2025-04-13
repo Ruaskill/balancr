@@ -1,3 +1,4 @@
+import time
 from typing import Dict, List, Optional, Union, Any
 import os
 import logging
@@ -21,6 +22,13 @@ from evaluation.visualisation import (
     plot_comparison_results,
     plot_learning_curves,
 )
+
+
+def format_time(seconds):
+    """Format time in seconds to minutes and seconds"""
+    minutes = int(seconds // 60)
+    remaining_seconds = seconds % 60
+    return f"{minutes}mins, {remaining_seconds:.2f}secs"
 
 
 class BalancingFramework:
@@ -304,9 +312,16 @@ class BalancingFramework:
                     clf_instance = clf_class(**clf_params)
 
                     # Train the classifier
+                    start_time = time.time()
+                    logging.info(f"Training {clf_name} with dataset balanced with {technique_name}...")
                     clf_instance.fit(X_balanced, y_balanced)
+                    train_time = time.time() - start_time
+                    logging.info(f"Training {clf_name} with dataset balanced with {technique_name} complete"
+                                 f"(Time Taken: {format_time(train_time)})")
 
                     # Initialise metrics for this technique
+                    start_time = time.time()
+                    logging.info(f"Getting standard metrics of {technique_name} after training {clf_name}...")
                     technique_metrics = {
                         "standard_metrics": get_metrics(
                             clf_instance,
@@ -314,15 +329,23 @@ class BalancingFramework:
                             self.y_test,
                         )
                     }
+                    std_metrics_time = time.time() - start_time
+                    logging.info(f"Getting standard metrics of {technique_name} after training {clf_name} complete" 
+                                 f"(Time Taken: {format_time(std_metrics_time)})")
 
                     # Add cross-validation metrics if enabled
                     if enable_cv:
+                        start_time = time.time()
+                        logging.info(f"Getting cv metrics of {technique_name} after training {clf_name}...")
                         technique_metrics["cv_metrics"] = get_cv_scores(
                             clf_class(**clf_params),
                             X_balanced,
                             y_balanced,
                             n_folds=cv_folds,
                         )
+                        cv_metrics_time = time.time() - start_time
+                        logging.info(f"Getting standard metrics of {technique_name} after training {clf_name} complete"
+                                     f"(Time Taken: {format_time(cv_metrics_time)})")
 
                     classifier_results[technique_name] = technique_metrics
 
@@ -567,6 +590,7 @@ class BalancingFramework:
             classifier = clf_class(**clf_params)
 
             learning_curve_data = get_learning_curve_data_multiple_techniques(
+                classifier_name=classifier_name,
                 classifier=classifier,
                 techniques_data=self.current_balanced_datasets,
                 train_sizes=train_sizes,

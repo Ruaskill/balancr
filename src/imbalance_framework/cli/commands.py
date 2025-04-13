@@ -1540,7 +1540,6 @@ def run_comparison(args):
                 if format_type == "none":
                     continue
 
-                print(f"vis_types_to_generate: '{vis_types_to_generate}'")
                 if "metrics" in vis_types_to_generate or "all" in visualisations:
                     metrics_path = std_metrics_dir / f"metrics_comparison.{format_type}"
                     logging.info(

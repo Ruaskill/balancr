@@ -1,5 +1,7 @@
 """Metrics for evaluating imbalanced classification performance."""
 
+import logging
+import time
 from typing import Dict
 import numpy as np
 from sklearn.metrics import (
@@ -12,6 +14,13 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 from sklearn.model_selection import cross_val_score, learning_curve
+
+
+def format_time(seconds):
+    """Format time in seconds to minutes and seconds"""
+    minutes = int(seconds // 60)
+    remaining_seconds = seconds % 60
+    return f"{minutes}mins, {remaining_seconds:.2f}secs"
 
 
 def get_metrics(
@@ -242,6 +251,7 @@ def get_learning_curve_data(
 
 
 def get_learning_curve_data_multiple_techniques(
+    classifier_name: str,
     classifier,
     techniques_data: Dict[str, Dict[str, np.ndarray]],
     train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
@@ -267,6 +277,9 @@ def get_learning_curve_data_multiple_techniques(
         X_balanced = data["X_balanced"]
         y_balanced = data["y_balanced"]
 
+        start_time = time.time()
+        logging.info(f"Generating learning curve for {classifier_name} trained on data"
+                     f"balanced by {technique_name}...")
         train_sizes_abs, train_scores, val_scores = learning_curve(
             estimator=classifier,
             X=X_balanced,
@@ -276,6 +289,9 @@ def get_learning_curve_data_multiple_techniques(
             scoring="accuracy",  # Default metric is accuracy
             shuffle=True,
         )
+        curve_generating_time = time.time() - start_time
+        logging.info(f"Generated learning curve for {classifier_name} trained on data" 
+                     f"balanced by {technique_name} (Time Taken: {format_time(curve_generating_time)})")
 
         learning_curve_data[technique_name] = {
             "train_sizes": train_sizes_abs,
