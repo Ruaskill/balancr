@@ -330,7 +330,7 @@ class BalancingFramework:
                         )
                     }
                     std_metrics_time = time.time() - start_time
-                    logging.info(f"Getting standard metrics of {technique_name} after training {clf_name} complete" 
+                    logging.info(f"Getting standard metrics of {technique_name} after training {clf_name} complete"
                                  f"(Time Taken: {format_time(std_metrics_time)})")
 
                     # Add cross-validation metrics if enabled

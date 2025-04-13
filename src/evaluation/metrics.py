@@ -290,7 +290,7 @@ def get_learning_curve_data_multiple_techniques(
             shuffle=True,
         )
         curve_generating_time = time.time() - start_time
-        logging.info(f"Generated learning curve for {classifier_name} trained on data" 
+        logging.info(f"Generated learning curve for {classifier_name} trained on data"
                      f"balanced by {technique_name} (Time Taken: {format_time(curve_generating_time)})")
 
         learning_curve_data[technique_name] = {
