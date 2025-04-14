@@ -305,6 +305,13 @@ Examples:
         help="Add to existing techniques instead of replacing them",
     )
 
+    parser.add_argument(
+        "-i",
+        "--include-original-data",
+        action="store_true",
+        help="Include the original unbalanced dataset when training classifiers for comparison"
+    )
+
     parser.set_defaults(func=commands.select_techniques)
 
 

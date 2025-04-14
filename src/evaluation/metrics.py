@@ -207,7 +207,7 @@ def get_cv_scores(
     unique_classes = np.unique(y_balanced)
     is_multiclass = len(unique_classes) > 2
 
-    # Initialize metrics dictionary
+    # Initialise metrics dictionary
     metrics = {}
 
     # Use scikit-learn's cross_val_score for standard metrics

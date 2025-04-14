@@ -304,7 +304,10 @@ def select_techniques(args):
                 existing_techniques.update(balancing_techniques)
 
             # Update config with merged values
-            settings = {"balancing_techniques": existing_techniques}
+            settings = {
+                "balancing_techniques": existing_techniques,
+                "include_original_data": args.include_original_data
+            }
 
             config.update_config(args.config_path, settings)
 
@@ -317,6 +320,7 @@ def select_techniques(args):
             new_config["balancing_techniques"] = (
                 balancing_techniques if BalancingFramework is not None else {}
             )
+            new_config["include_original_data"] = args.include_original_data
 
             # Directly write the entire config to replace the file
             config_path = Path(args.config_path)
@@ -1341,6 +1345,7 @@ def run_comparison(args):
     cv_enabled = eval_config.get("cross_validation", 0) > 0
     cv_folds = eval_config.get("cross_validation", 5)
     random_state = eval_config.get("random_state", 42)
+    include_original = current_config.get("include_original_data", False)
 
     balancing_techniques = current_config.get("balancing_techniques", {})
     technique_names = list(balancing_techniques.keys())
@@ -1431,6 +1436,7 @@ def run_comparison(args):
             test_size=test_size,
             random_state=random_state,
             technique_params=balancing_techniques,
+            include_original=include_original
         )
         balancing_time = time.time() - start_time
         logging.info(

@@ -196,6 +196,7 @@ class BalancingFramework:
         test_size: float = 0.2,
         random_state: int = 42,
         technique_params: Optional[Dict[str, Dict[str, Any]]] = None,
+        include_original: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Apply multiple balancing techniques to the dataset.
@@ -222,6 +223,14 @@ class BalancingFramework:
         self.y_test = y_test
 
         balanced_datasets = {}
+
+        if include_original:
+            # Store imbalanced dataset to compare with balanced later
+            balanced_datasets["Original"] = {
+                "X_balanced": X_train,
+                "y_balanced": y_train,
+            }
+
         for technique_name in technique_names:
             # Get technique
             technique_class = self.technique_registry.get_technique_class(

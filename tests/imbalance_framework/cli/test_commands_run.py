@@ -536,6 +536,7 @@ class TestRunComparisonBalancingTechniques:
             test_size=0.2,  # Default value
             random_state=42,  # Default value
             technique_params=minimal_config["balancing_techniques"],
+            include_original=False,
         )
 
         # Verify log messages
@@ -576,6 +577,7 @@ class TestRunComparisonBalancingTechniques:
             test_size=full_config["evaluation"]["test_size"],
             random_state=full_config["evaluation"]["random_state"],
             technique_params=full_config["balancing_techniques"],
+            include_original=False,
         )
 
     @patch("imbalance_framework.cli.config.load_config")
