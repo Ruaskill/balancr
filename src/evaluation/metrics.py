@@ -13,7 +13,7 @@ from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
 )
-from sklearn.model_selection import cross_val_score, learning_curve
+from sklearn.model_selection import learning_curve
 
 
 def format_time(seconds):
@@ -43,17 +43,33 @@ def get_metrics(
     # Get predictions
     y_pred = classifier.predict(X_test)
 
+    metrics = {}
+
     # For ROC AUC, we need probability predictions
     if hasattr(classifier, "predict_proba"):
         try:
             y_pred_proba = classifier.predict_proba(X_test)
             # For multiclass problems, we'll use different methods below
         except (AttributeError, IndexError):
-            # Fall back to binary predictions if probabilities fail
-            y_pred_proba = y_pred
+            # Log warning and set probability metrics to NaN
+            logging.warning(
+                f"Failed to get probability predictions from classifier {classifier.__class__.__name__}. "
+                "ROC-AUC and average_precision metrics will be set to NaN."
+            )
+            metrics["roc_auc"] = float("nan")
+            metrics["average_precision"] = float("nan")
+            # Skip the rest of probability-based calculations
+            y_pred_proba = None
     else:
-        # Use predicted classes if predict_proba isn't available
-        y_pred_proba = y_pred
+        # Log warning and set probability metrics to NaN
+        logging.warning(
+            f"Classifier {classifier.__class__.__name__} does not support predict_proba. "
+            "ROC-AUC and average_precision metrics will be set to NaN."
+        )
+        metrics["roc_auc"] = float("nan")
+        metrics["average_precision"] = float("nan")
+        # Skip the rest of probability-based calculations
+        y_pred_proba = None
 
     # Calculate confusion matrix
     cm = confusion_matrix(y_test, y_pred)
@@ -182,13 +198,19 @@ def get_cv_scores(
     Returns:
         Dictionary containing average metric scores
     """
+    import logging
+    from sklearn.model_selection import cross_val_score, cross_val_predict
+    from sklearn.metrics import roc_auc_score, confusion_matrix
+    import numpy as np
+
     # Determine if we're dealing with multiclass data
     unique_classes = np.unique(y_balanced)
     is_multiclass = len(unique_classes) > 2
 
-    # Calculate different metrics using cross-validation
+    # Initialize metrics dictionary
     metrics = {}
 
+    # Use scikit-learn's cross_val_score for standard metrics
     # Accuracy doesn't need special handling for multiclass
     scores = cross_val_score(
         classifier, X_balanced, y_balanced, cv=n_folds, scoring="accuracy"
@@ -209,6 +231,120 @@ def get_cv_scores(
         )
         metrics[f"cv_{metric}_mean"] = scores.mean()
         metrics[f"cv_{metric}_std"] = scores.std()
+
+    # For ROC-AUC and G-mean, we need the predictions
+    try:
+        # Get cross-validated predictions
+        y_pred = cross_val_predict(classifier, X_balanced, y_balanced, cv=n_folds)
+
+        # Calculate G-mean
+        if is_multiclass:
+            # Calculate per-class specificities and recalls for each class
+            specificities = []
+            recalls = []
+
+            for i in unique_classes:
+                # For each class, treat it as positive and all others as negative
+                y_true_binary = (y_balanced == i).astype(int)
+                y_pred_binary = (y_pred == i).astype(int)
+
+                # Calculate confusion matrix
+                cm = confusion_matrix(y_true_binary, y_pred_binary)
+
+                # Ensure the confusion matrix has the right shape
+                if cm.shape == (2, 2):
+                    tn, fp, fn, tp = cm.ravel()
+
+                    # Calculate specificity and recall
+                    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+                    recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+                    specificities.append(specificity)
+                    recalls.append(recall)
+
+            # Calculate macro-averaged G-mean
+            if specificities and recalls:  # Check if lists are not empty
+                macro_specificity = np.mean(specificities)
+                macro_recall = np.mean(recalls)
+                g_mean = np.sqrt(macro_specificity * macro_recall)
+
+                metrics["cv_g_mean_mean"] = g_mean
+                metrics["cv_g_mean_std"] = (
+                    0.0  # Cannot calculate std from a single value
+                )
+            else:
+                logging.warning(
+                    f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
+                    "Some classes may not have been predicted correctly."
+                )
+                # We don't set the metrics here, letting the absence indicate an issue
+        else:
+            # Binary case
+            cm = confusion_matrix(y_balanced, y_pred)
+
+            if cm.shape == (2, 2):
+                tn, fp, fn, tp = cm.ravel()
+
+                specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+                sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+
+                g_mean = np.sqrt(specificity * sensitivity)
+                metrics["cv_g_mean_mean"] = g_mean
+            else:
+                logging.warning(
+                    f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
+                    "Unexpected confusion matrix shape."
+                )
+                # Metrics not set
+    except Exception as e:
+        logging.warning(
+            f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
+            f"Error: {str(e)}"
+        )
+        # Metrics not set
+
+    # ROC-AUC calculation - separate try block to ensure G-mean calculation happens even if ROC-AUC fails
+    try:
+        if hasattr(classifier, "predict_proba"):
+            # Get probability predictions
+            if is_multiclass:
+                y_proba = cross_val_predict(
+                    classifier,
+                    X_balanced,
+                    y_balanced,
+                    cv=n_folds,
+                    method="predict_proba",
+                )
+                roc_auc = roc_auc_score(
+                    y_balanced, y_proba, multi_class="ovr", average="macro"
+                )
+            else:
+                y_proba = cross_val_predict(
+                    classifier,
+                    X_balanced,
+                    y_balanced,
+                    cv=n_folds,
+                    method="predict_proba",
+                )
+                # Use second column for positive class probability
+                if y_proba.shape[1] > 1:
+                    roc_auc = roc_auc_score(y_balanced, y_proba[:, 1])
+                else:
+                    roc_auc = roc_auc_score(y_balanced, y_proba)
+
+            metrics["cv_roc_auc_mean"] = roc_auc
+        else:
+            logging.warning(
+                f"Classifier {classifier.__class__.__name__} does not support predict_proba. "
+                "ROC-AUC cannot be calculated."
+            )
+            # Metrics not set
+    except Exception as e:
+        logging.warning(
+            f"Could not calculate ROC-AUC for classifier {classifier.__class__.__name__}. "
+            f"Error: {str(e)}"
+        )
+        # Metrics not set
 
     return metrics
 
@@ -278,8 +414,10 @@ def get_learning_curve_data_multiple_techniques(
         y_balanced = data["y_balanced"]
 
         start_time = time.time()
-        logging.info(f"Generating learning curve for {classifier_name} trained on data"
-                     f"balanced by {technique_name}...")
+        logging.info(
+            f"Generating learning curve for {classifier_name} trained on data"
+            f"balanced by {technique_name}..."
+        )
         train_sizes_abs, train_scores, val_scores = learning_curve(
             estimator=classifier,
             X=X_balanced,
@@ -290,8 +428,10 @@ def get_learning_curve_data_multiple_techniques(
             shuffle=True,
         )
         curve_generating_time = time.time() - start_time
-        logging.info(f"Generated learning curve for {classifier_name} trained on data"
-                     f"balanced by {technique_name} (Time Taken: {format_time(curve_generating_time)})")
+        logging.info(
+            f"Generated learning curve for {classifier_name} trained on data"
+            f"balanced by {technique_name} (Time Taken: {format_time(curve_generating_time)})"
+        )
 
         learning_curve_data[technique_name] = {
             "train_sizes": train_sizes_abs,
