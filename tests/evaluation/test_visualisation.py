@@ -1,5 +1,7 @@
 import pytest
 import os
+import sys
+import plotly
 import numpy as np
 from unittest.mock import patch
 from evaluation.visualisation import (
@@ -8,6 +10,7 @@ from evaluation.visualisation import (
     plot_comparison_results,
     plot_learning_curves,
     plot_radar_chart,
+    plot_3d_scatter,
 )
 
 
@@ -276,3 +279,175 @@ def test_plot_radar_chart_invalid_input():
         plot_radar_chart(
             results, classifier_name="SomeClassifier", metrics_to_plot=["metric3"]
         )
+
+
+@pytest.fixture
+def sample_3d_metrics_results():
+    """Create sample results with metrics needed for 3D scatter plot"""
+    return {
+        "RandomForestClassifier": {
+            "SMOTE": {
+                "standard_metrics": {
+                    "precision": 0.8,
+                    "recall": 0.7,
+                    "f1": 0.75,
+                    "roc_auc": 0.85,
+                    "g_mean": 0.76,
+                },
+                "cv_metrics": {
+                    "cv_precision_mean": 0.78,
+                    "cv_recall_mean": 0.72,
+                    "cv_f1_mean": 0.74,
+                    "cv_roc_auc_mean": 0.83,
+                    "cv_g_mean_mean": 0.75,
+                },
+            },
+            "RandomUnderSampler": {
+                "standard_metrics": {
+                    "precision": 0.75,
+                    "recall": 0.8,
+                    "f1": 0.775,
+                    "roc_auc": 0.82,
+                    "g_mean": 0.78,
+                },
+                "cv_metrics": {
+                    "cv_precision_mean": 0.73,
+                    "cv_recall_mean": 0.77,
+                    "cv_f1_mean": 0.75,
+                    "cv_roc_auc_mean": 0.81,
+                    "cv_g_mean_mean": 0.76,
+                },
+            },
+        },
+        "LogisticRegression": {
+            "SMOTE": {
+                "standard_metrics": {
+                    "precision": 0.72,
+                    "recall": 0.65,
+                    "f1": 0.68,
+                    "roc_auc": 0.80,
+                    "g_mean": 0.71,
+                },
+                "cv_metrics": {
+                    "cv_precision_mean": 0.70,
+                    "cv_recall_mean": 0.67,
+                    "cv_f1_mean": 0.68,
+                    "cv_roc_auc_mean": 0.79,
+                    "cv_g_mean_mean": 0.72,
+                },
+            }
+        },
+    }
+
+
+@patch("plotly.graph_objects.Figure.write_html")
+@patch("plotly.graph_objects.Figure.show")
+def test_plot_3d_scatter(
+    mock_show, mock_write_html, sample_3d_metrics_results, temp_path
+):
+    """Test if plot_3d_scatter runs without errors and saves files correctly"""
+    # Test with display=True for standard metrics
+    plot_3d_scatter(
+        sample_3d_metrics_results, metric_type="standard_metrics", display=True
+    )
+    mock_show.assert_called_once()
+    mock_show.reset_mock()
+
+    # Test with saving for standard metrics
+    save_path = temp_path / "3d_scatter.html"
+    plot_3d_scatter(
+        sample_3d_metrics_results, metric_type="standard_metrics", save_path=save_path
+    )
+    mock_write_html.assert_called_once()
+    mock_write_html.reset_mock()
+
+    # Test with CV metrics
+    plot_3d_scatter(
+        sample_3d_metrics_results,
+        metric_type="cv_metrics",
+        save_path=temp_path / "3d_scatter_cv.html",
+    )
+    mock_write_html.assert_called_once()
+    mock_write_html.reset_mock()
+    mock_show.assert_not_called()
+
+
+@patch("logging.warning")
+def test_plot_3d_scatter_missing_metrics(mock_warning, sample_3d_metrics_results):
+    """Test plot_3d_scatter handling when required metrics are missing"""
+    # Create results with missing metrics
+    incomplete_results = {
+        "SomeClassifier": {
+            "SomeTechnique": {
+                "standard_metrics": {
+                    "precision": 0.8,
+                    "recall": 0.7,
+                    # Missing f1, roc_auc, and g_mean
+                }
+            }
+        }
+    }
+
+    # Call the function
+    plot_3d_scatter(incomplete_results)
+
+    # Verify both warnings were logged
+    assert mock_warning.call_count == 2
+    # First warning about the specific missing metrics
+    assert "Cannot plot data point" in mock_warning.call_args_list[0][0][0]
+    assert (
+        "Missing metrics: ['f1', 'roc_auc', 'g_mean']"
+        in mock_warning.call_args_list[0][0][0]
+    )
+    # Second warning about no valid data points
+    assert (
+        "No valid data points found for 3D scatter plot"
+        in mock_warning.call_args_list[1][0][0]
+    )
+
+
+@patch("logging.warning")
+def test_plot_3d_scatter_metrics_to_plot_filter(
+    mock_warning, sample_3d_metrics_results
+):
+    """Test plot_3d_scatter when metrics_to_plot doesn't include required metrics"""
+    # Call with metrics_to_plot that's missing required metrics
+    plot_3d_scatter(
+        sample_3d_metrics_results,
+        metrics_to_plot=["precision", "recall"],  # Missing f1, roc_auc, g_mean
+    )
+
+    # Verify warning was logged
+    mock_warning.assert_called_once()
+    assert "Cannot create 3D scatter plot" in mock_warning.call_args[0][0]
+    assert "Required metrics" in mock_warning.call_args[0][0]
+
+
+@patch("plotly.graph_objects.Figure")
+def test_plot_3d_scatter_empty_results(mock_figure, sample_3d_metrics_results):
+    """Test plot_3d_scatter with empty results"""
+    # Call with empty results
+    plot_3d_scatter({})
+
+    # Figure should not be created
+    mock_figure.assert_not_called()
+
+
+@pytest.mark.skipif("plotly" not in sys.modules, reason="Plotly is not installed")
+def test_plot_3d_scatter_integration():
+    """Integration test for 3D scatter plot (only runs if plotly is installed)"""
+    plotly
+    # Basic results to test actual plotly functionality
+    test_results = {
+        "TestClassifier": {
+            "TestTechnique": {
+                "standard_metrics": {"f1": 0.75, "roc_auc": 0.85, "g_mean": 0.76}
+            }
+        }
+    }
+
+    # This should run without error if plotly is installed
+    fig = plot_3d_scatter(test_results)
+
+    # Basic verification
+    assert fig is not None

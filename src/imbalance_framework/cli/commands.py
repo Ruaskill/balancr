@@ -19,6 +19,7 @@ from pathlib import Path
 from evaluation.visualisation import (
     plot_comparison_results,
     plot_radar_chart,
+    plot_3d_scatter,
     )
 import pandas as pd
 
@@ -1563,13 +1564,23 @@ def run_comparison(args):
                     )
 
                     if ("radar" in vis_types_to_generate or "all" in visualisations):
-                        std_radar_path = classifier_dir / "standard_metrics_radar.png"
+                        std_radar_path = classifier_dir / f"standard_metrics_radar.{format_type}"
                         plot_radar_chart(
                             results,
                             classifier_name=classifier_name,
                             metric_type="standard_metrics",
                             metrics_to_plot=metrics_to_plot,
                             save_path=std_radar_path,
+                            display=display_visualisations,
+                        )
+
+                    if ("3d" in vis_types_to_generate or "all" in visualisations):
+                        std_3d_path = output_dir / "standard_metrics_3d.html"
+                        plot_3d_scatter(
+                            results,
+                            metric_type="standard_metrics",
+                            metrics_to_plot=metrics_to_plot,
+                            save_path=std_3d_path,
                             display=display_visualisations,
                         )
 
@@ -1665,13 +1676,23 @@ def run_comparison(args):
                         )
 
                         if ("radar" in vis_types_to_generate or "all" in visualisations):
-                            cv_radar_path = classifier_dir / "cv_metrics_radar.png"
+                            cv_radar_path = classifier_dir / f"cv_metrics_radar.{format_type}"
                             plot_radar_chart(
                                 results,
                                 classifier_name=classifier_name,
                                 metric_type="cv_metrics",
                                 metrics_to_plot=metrics_to_plot,
                                 save_path=cv_radar_path,
+                                display=display_visualisations,
+                            )
+
+                        if ("3d" in vis_types_to_generate or "all" in visualisations):
+                            cv_3d_path = output_dir / "cv_metrics_3d.html"
+                            plot_3d_scatter(
+                                results,
+                                metric_type="cv_metrics",
+                                metrics_to_plot=metrics_to_plot,
+                                save_path=cv_3d_path,
                                 display=display_visualisations,
                             )
 

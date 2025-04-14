@@ -593,7 +593,7 @@ Examples:
     parser.add_argument(
         "--types",
         nargs="+",
-        choices=["metrics", "distribution", "learning_curves", "radar", "all", "none"],
+        choices=["metrics", "distribution", "learning_curves", "radar", "3d", "all", "none"],
         default=["all"],
         help="Types of visualisations to generate: 'metrics' (performance comparison), 'distribution' (class balance), 'learning_curves' (model performance vs. training size), 'all', or 'none'",
     )

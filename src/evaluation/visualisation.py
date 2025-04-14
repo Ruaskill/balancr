@@ -4,6 +4,8 @@ from typing import Dict, Any, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import logging
+import pandas as pd
 
 
 def plot_class_distribution(
@@ -440,10 +442,11 @@ def plot_radar_chart(
     # Get color map for different techniques
     # Use matplotlib.colormaps instead of deprecated plt.cm.get_cmap
     import matplotlib as mpl
-    if hasattr(mpl, 'colormaps'):  # Matplotlib 3.7+
-        cmap = mpl.colormaps['tab10']
+
+    if hasattr(mpl, "colormaps"):  # Matplotlib 3.7+
+        cmap = mpl.colormaps["tab10"]
     else:  # Fallback for older versions
-        cmap = plt.get_cmap('tab10')
+        cmap = plt.get_cmap("tab10")
 
     # Plot each technique
     for i, (technique_name, metrics) in enumerate(plot_data.items()):
@@ -480,3 +483,178 @@ def plot_radar_chart(
         plt.show()
 
     plt.close()
+
+
+def plot_3d_scatter(
+    results: Dict[str, Dict[str, Dict[str, Dict[str, float]]]],
+    metric_type: str = "standard_metrics",
+    metrics_to_plot: Optional[list] = None,
+    save_path: Optional[str] = None,
+    display: bool = False,
+) -> None:
+    """
+    Create a 3D scatter plot showing the relationship between F1-score, ROC-AUC, and G-mean
+    for various classifier and balancing technique combinations.
+
+    Args:
+        results: Dictionary containing nested results structure
+        metric_type: Type of metrics to plot ('standard_metrics' or 'cv_metrics')
+        metrics_to_plot: List of metrics that were chosen to be plotted
+        save_path: Path to save the plot
+        display: Whether to display the plot
+    """
+    try:
+        import plotly.graph_objects as go
+    except ImportError:
+        logging.error(
+            "Plotly is required for 3D scatter plots. Install with: pip install plotly"
+        )
+        return
+
+    # Determine metric keys based on the metric_type
+    if metric_type == "standard_metrics":
+        f1_key = "f1"
+        roc_auc_key = "roc_auc"
+        g_mean_key = "g_mean"
+        title_prefix = "Standard Metrics"
+    else:  # cv_metrics
+        f1_key = "cv_f1_mean"
+        roc_auc_key = "cv_roc_auc_mean"
+        g_mean_key = "cv_g_mean_mean"
+        title_prefix = "Cross-Validation Metrics"
+
+    # Check if required metrics are in metrics_to_plot
+    required_metrics = ["f1", "roc_auc", "g_mean"]
+    if metrics_to_plot is not None:
+        missing_metrics = [m for m in required_metrics if m not in metrics_to_plot]
+        if missing_metrics:
+            logging.warning(
+                f"Cannot create 3D scatter plot. Required metrics {missing_metrics} are not in metrics_to_plot. "
+                "Please include these metrics using 'configure-metrics'."
+            )
+            return
+
+    # Prepare data for plotting
+    plot_data = []
+
+    # Assign a unique color to each classifier
+    classifiers = list(results.keys())
+
+    # Skip if no classifiers
+    if not classifiers:
+        logging.warning("No classifiers found in results.")
+        return
+
+    # Build the data structure for plotting
+    for classifier_name in classifiers:
+        classifier_results = results[classifier_name]
+
+        for technique_name, technique_metrics in classifier_results.items():
+            if metric_type in technique_metrics:
+                metrics = technique_metrics[metric_type]
+
+                # Check if all required metrics are available
+                if all(key in metrics for key in [f1_key, roc_auc_key, g_mean_key]):
+                    f1 = metrics[f1_key]
+                    roc_auc = metrics[roc_auc_key]
+                    g_mean = metrics[g_mean_key]
+
+                    # Only add valid data points
+                    if (
+                        isinstance(f1, (int, float))
+                        and isinstance(roc_auc, (int, float))
+                        and isinstance(g_mean, (int, float))
+                    ):
+
+                        plot_data.append(
+                            {
+                                "classifier": classifier_name,
+                                "technique": technique_name,
+                                "f1": f1,
+                                "roc_auc": roc_auc,
+                                "g_mean": g_mean,
+                            }
+                        )
+                else:
+                    missing = [
+                        k for k in [f1_key, roc_auc_key, g_mean_key] if k not in metrics
+                    ]
+                    logging.warning(
+                        f"Cannot plot data point for {classifier_name}/{technique_name}. "
+                        f"Missing metrics: {missing}"
+                    )
+
+    # Skip if no valid data points
+    if not plot_data:
+        logging.warning("No valid data points found for 3D scatter plot.")
+        return
+
+    # Convert to pandas DataFrame for easier processing
+    df = pd.DataFrame(plot_data)
+
+    # Create interactive 3D scatter plot
+    fig = go.Figure()
+
+    # Add traces for each classifier
+    for classifier_name in df["classifier"].unique():
+        subset = df[df["classifier"] == classifier_name]
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=subset["roc_auc"],  # X-axis: ROC-AUC
+                y=subset["g_mean"],  # Y-axis: G-mean
+                z=subset["f1"],  # Z-axis: F1-score
+                mode="markers",
+                marker=dict(
+                    size=10,
+                    opacity=0.8,
+                ),
+                name=classifier_name,
+                text=[
+                    f"Classifier: {row['classifier']}<br>Technique: {row['technique']}<br>"
+                    f"F1: {row['f1']:.4f}<br>ROC-AUC: {row['roc_auc']:.4f}<br>G-mean: {row['g_mean']:.4f}"
+                    for _, row in subset.iterrows()
+                ],
+                hoverinfo="text",
+            )
+        )
+
+    # Update layout
+    fig.update_layout(
+        title=f"{title_prefix}: F1-score vs ROC-AUC vs G-mean",
+        scene=dict(
+            xaxis_title="ROC-AUC",
+            yaxis_title="G-mean",
+            zaxis_title="F1-score",
+            xaxis=dict(range=[0, 1]),
+            yaxis=dict(range=[0, 1]),
+            zaxis=dict(range=[0, 1]),
+        ),
+        margin=dict(l=0, r=0, b=0, t=50),
+        legend=dict(
+            x=0.01,
+            y=0.99,
+            traceorder="normal",
+            font=dict(size=12),
+        ),
+        autosize=True,
+        height=700,
+    )
+
+    # Save or display the figure
+    if save_path:
+        # Convert Path object to string if needed
+        save_path_str = str(save_path)
+
+        # Ensure .html extension for interactive plot
+        if not save_path_str.endswith(".html"):
+            save_path_str += ".html"
+
+        # Save as interactive HTML
+        fig.write_html(save_path_str)
+        logging.info(f"3D scatter plot saved to {save_path_str}")
+
+    if display:
+        fig.show()
+
+    return fig  # Return the figure object for potential further customisation

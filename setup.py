@@ -14,6 +14,7 @@ setup(
         "imbalanced-learn>=0.8.0",
         "openpyxl>=3.0.0",
         "colorama>=0.4.4",
+        "plotly>=6.0.1",
     ],
     entry_points={
         "console_scripts": [
