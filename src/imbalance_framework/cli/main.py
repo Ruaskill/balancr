@@ -554,6 +554,9 @@ Examples:
   # Use only precision and recall
   balancr configure-metrics --metrics precision recall
 
+  # Use all available metrics
+  balancr configure-metrics --metrics all
+
   # Save results in both CSV and JSON formats
   balancr configure-metrics --save-formats csv json
         """,
@@ -563,7 +566,7 @@ Examples:
         "--metrics",
         nargs="+",
         default=["precision", "recall", "f1", "roc_auc"],
-        help="Metrics to use for evaluation (default: precision, recall, f1, roc_auc). Options include: accuracy, precision, recall, f1, roc_auc, specificity, g_mean, average_precision",
+        help="Metrics to use for evaluation (default: precision, recall, f1, roc_auc). Use 'all' to include all available metrics: accuracy, precision, recall, f1, roc_auc, specificity, g_mean, average_precision",
     )
     parser.add_argument(
         "--save-formats",

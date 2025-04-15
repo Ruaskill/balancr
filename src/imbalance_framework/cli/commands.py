@@ -20,7 +20,7 @@ from evaluation.visualisation import (
     plot_comparison_results,
     plot_radar_chart,
     plot_3d_scatter,
-    )
+)
 import pandas as pd
 
 from . import config
@@ -306,7 +306,7 @@ def select_techniques(args):
             # Update config with merged values
             settings = {
                 "balancing_techniques": existing_techniques,
-                "include_original_data": args.include_original_data
+                "include_original_data": args.include_original_data,
             }
 
             config.update_config(args.config_path, settings)
@@ -1173,11 +1173,31 @@ def configure_metrics(args):
     Returns:
         int: Exit code
     """
-    logging.info(f"Configuring metrics: {', '.join(args.metrics)}")
+    # Define all available metrics
+    all_metrics = [
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "roc_auc",
+        "specificity",
+        "g_mean",
+        "average_precision",
+    ]
+
+    # If 'all' is specified, use all available metrics
+    if "all" in args.metrics:
+        metrics_to_use = all_metrics
+        metrics_str = "all available metrics"
+    else:
+        metrics_to_use = args.metrics
+        metrics_str = ", ".join(args.metrics)
+
+    logging.info(f"Configuring metrics: {metrics_str}")
 
     # Update configuration with metrics settings
     settings = {
-        "output": {"metrics": args.metrics, "save_metrics_formats": args.save_formats}
+        "output": {"metrics": metrics_to_use, "save_metrics_formats": args.save_formats}
     }
 
     try:
@@ -1192,7 +1212,7 @@ def configure_metrics(args):
 
         # Display confirmation
         print("\nMetrics Configuration:")
-        print(f"  Metrics: {', '.join(args.metrics)}")
+        print(f"  Metrics: {metrics_str}")
         print(f"  Save Formats: {', '.join(args.save_formats)}")
 
         return 0
@@ -1436,7 +1456,7 @@ def run_comparison(args):
             test_size=test_size,
             random_state=random_state,
             technique_params=balancing_techniques,
-            include_original=include_original
+            include_original=include_original,
         )
         balancing_time = time.time() - start_time
         logging.info(
@@ -1569,8 +1589,10 @@ def run_comparison(args):
                         display=display_visualisations,
                     )
 
-                    if ("radar" in vis_types_to_generate or "all" in visualisations):
-                        std_radar_path = classifier_dir / f"standard_metrics_radar.{format_type}"
+                    if "radar" in vis_types_to_generate or "all" in visualisations:
+                        std_radar_path = (
+                            classifier_dir / f"standard_metrics_radar.{format_type}"
+                        )
                         plot_radar_chart(
                             results,
                             classifier_name=classifier_name,
@@ -1580,7 +1602,7 @@ def run_comparison(args):
                             display=display_visualisations,
                         )
 
-                    if ("3d" in vis_types_to_generate or "all" in visualisations):
+                    if "3d" in vis_types_to_generate or "all" in visualisations:
                         std_3d_path = output_dir / "standard_metrics_3d.html"
                         plot_3d_scatter(
                             results,
@@ -1681,8 +1703,10 @@ def run_comparison(args):
                             display=display_visualisations,
                         )
 
-                        if ("radar" in vis_types_to_generate or "all" in visualisations):
-                            cv_radar_path = classifier_dir / f"cv_metrics_radar.{format_type}"
+                        if "radar" in vis_types_to_generate or "all" in visualisations:
+                            cv_radar_path = (
+                                classifier_dir / f"cv_metrics_radar.{format_type}"
+                            )
                             plot_radar_chart(
                                 results,
                                 classifier_name=classifier_name,
@@ -1692,7 +1716,7 @@ def run_comparison(args):
                                 display=display_visualisations,
                             )
 
-                        if ("3d" in vis_types_to_generate or "all" in visualisations):
+                        if "3d" in vis_types_to_generate or "all" in visualisations:
                             cv_3d_path = output_dir / "cv_metrics_3d.html"
                             plot_3d_scatter(
                                 results,
