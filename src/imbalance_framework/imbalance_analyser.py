@@ -353,7 +353,7 @@ class BalancingFramework:
                             n_folds=cv_folds,
                         )
                         cv_metrics_time = time.time() - start_time
-                        logging.info(f"Getting standard metrics of {technique_name} after training {clf_name} complete"
+                        logging.info(f"Getting cv metrics of {technique_name} after training {clf_name} complete"
                                      f"(Time Taken: {format_time(cv_metrics_time)})")
 
                     classifier_results[technique_name] = technique_metrics
