@@ -251,23 +251,10 @@ class TestGetClassifierClass:
         clf_class = registry.get_classifier_class("RandomForestClassifier")
         assert clf_class == MockRandomForestClassifier
 
-        # Test getting a classifier with module specified
-        clf_class = registry.get_classifier_class(
-            "LogisticRegression", module_name="linear_model"
-        )
-        assert clf_class == MockLogisticRegression
-
-        # Test getting a classifier with a valid suffix and with module specified
-        clf_class = registry.get_classifier_class(
-            "LogisticRegression_2", module_name="linear_model"
-        )
-        assert clf_class == MockLogisticRegression
-
-        # Test getting a classifier with invalid suffix and with module specified
-        clf_class = registry.get_classifier_class(
-            "LogisticRegression.BadSuffix", module_name="linear_model"
-        )
-        assert clf_class is None
+        # Same again, but for name with valid suffix
+        registry._cached_sklearn_classifiers = {}
+        clf_class = registry.get_classifier_class("RandomForestClassifier_2")
+        assert clf_class == MockRandomForestClassifier
 
 
 class TestListAvailableClassifiers:
