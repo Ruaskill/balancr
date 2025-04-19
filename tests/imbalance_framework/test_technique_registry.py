@@ -16,6 +16,55 @@ class MockRandomUnderSampler:
         return X, y
 
 
+class MockBaseBalancer(BaseBalancer):
+    def balance(self, X, y):
+        return X, y
+
+
+class MockSimpleTechnique(MockBaseBalancer):
+    def __init__(self, param1=42, param2="default"):
+        super().__init__()
+        self.param1 = param1
+        self.param2 = param2
+
+
+class MockTechnique_WithUnderscore(MockBaseBalancer):
+    def __init__(self, alpha=0.1, beta=0.2):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+
+
+class MockTechnique(MockBaseBalancer):
+    def __init__(self, required_param, optional_param=None, complex_default={}):
+        super().__init__()
+        self.required_param = required_param
+        self.optional_param = optional_param
+        self.complex_default = complex_default
+
+
+@pytest.fixture
+def registry_with_mocks():
+    """Setup a registry with mock techniques for testing"""
+    registry = TechniqueRegistry()
+
+    # Add custom techniques to the registry
+    registry.custom_techniques = {
+        "MockSimpleTechnique": MockSimpleTechnique,
+        "MockTechnique_WithUnderscore": MockTechnique_WithUnderscore,
+        "MockTechnique": MockTechnique,
+    }
+
+    # Mock the imblearn techniques cache
+    mock_imblearn_class = MagicMock()
+    registry._cached_imblearn_techniques = {
+        "SMOTE": ("imblearn.over_sampling", mock_imblearn_class),
+        "RandomUnderSampler": ("imblearn.under_sampling", mock_imblearn_class),
+    }
+
+    return registry
+
+
 @pytest.fixture
 def mock_imblearn_modules():
     """Mock the imblearn modules for testing"""
@@ -45,8 +94,8 @@ def sample_data():
     return X, y
 
 
-def test_registry_initialization(registry):
-    """Test that registry initializes correctly"""
+def test_registry_initialisation(registry):
+    """Test that registry initialises correctly"""
     assert hasattr(registry, "custom_techniques")
     assert isinstance(registry.custom_techniques, dict)
     assert hasattr(registry, "_cached_imblearn_techniques")
@@ -182,3 +231,89 @@ def test_duplicate_registration(registry):
     # Should use the latest registration
     technique_class = registry.get_technique_class("CustomTechnique")
     assert technique_class == CustomBalancer2
+
+
+def test_get_technique_class_exact_match(registry_with_mocks):
+    """Test getting a technique class with exact name match"""
+    # Test custom technique
+    technique_class = registry_with_mocks.get_technique_class("MockSimpleTechnique")
+    assert technique_class == MockSimpleTechnique
+
+    # Test imblearn technique
+    technique_class = registry_with_mocks.get_technique_class("SMOTE")
+    assert technique_class is not None
+
+
+def test_get_technique_class_with_underscore_suffix(registry_with_mocks):
+    """Test getting a technique class with underscore suffix"""
+    # Test custom technique with suffix
+    technique_class = registry_with_mocks.get_technique_class("MockSimpleTechnique_v1")
+    assert technique_class == MockSimpleTechnique
+
+
+def test_get_technique_class_with_dash_suffix(registry_with_mocks):
+    """Test getting a technique class with dash suffix"""
+    # Test imblearn technique with suffix
+    technique_class = registry_with_mocks.get_technique_class("SMOTE-v2")
+    assert technique_class is not None
+
+
+def test_get_technique_class_exact_match_with_underscore(registry_with_mocks):
+    """Test that a class with underscore in name is found exactly first"""
+    technique_class = registry_with_mocks.get_technique_class(
+        "MockTechnique_WithUnderscore"
+    )
+    assert technique_class == MockTechnique_WithUnderscore
+
+
+def test_get_technique_class_not_found(registry_with_mocks):
+    """Test behavior when technique is not found"""
+    technique_class = registry_with_mocks.get_technique_class("NonExistentTechnique")
+    assert technique_class is None
+
+    # Test with non-existent base name
+    technique_class = registry_with_mocks.get_technique_class("NonExistent_v1")
+    assert technique_class is None
+
+
+def test_get_technique_default_params_exact_match(registry_with_mocks):
+    """Test extracting default parameters from a technique with exact name match"""
+    params = registry_with_mocks.get_technique_default_params("MockSimpleTechnique")
+    assert "param1" in params
+    assert params["param1"] == 42
+    assert "param2" in params
+    assert params["param2"] == "default"
+
+
+def test_get_technique_default_params_with_suffix(registry_with_mocks):
+    """Test extracting default parameters from a technique with suffix"""
+    params = registry_with_mocks.get_technique_default_params(
+        "MockSimpleTechnique_variant"
+    )
+    assert "param1" in params
+    assert params["param1"] == 42
+
+
+def test_get_technique_default_params_required_params(registry_with_mocks):
+    """Test handling of required parameters (should be None)"""
+    params = registry_with_mocks.get_technique_default_params("MockTechnique")
+    assert "required_param" in params
+    assert params["required_param"] is None
+    assert "optional_param" in params
+    assert params["optional_param"] is None
+
+
+def test_extract_params_from_class():
+    """Test the _extract_params_from_class method directly"""
+    registry = TechniqueRegistry()
+    params = registry._extract_params_from_class(MockSimpleTechnique)
+
+    assert "param1" in params
+    assert params["param1"] == 42
+    assert "param2" in params
+    assert params["param2"] == "default"
+
+    # Test with a class that has a required parameter
+    params = registry._extract_params_from_class(MockTechnique)
+    assert "required_param" in params
+    assert params["required_param"] is None  # Should default to None

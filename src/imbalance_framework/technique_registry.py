@@ -37,31 +37,60 @@ class TechniqueRegistry:
                 logging.warning(f"Could not import {module_path}: {str(e)}")
 
     def get_technique_class(self, technique_name: str) -> Optional[Type[BaseBalancer]]:
-        """Get the technique class by name"""
-        # Check custom techniques first
+        """Get the technique class by name, handling suffixed variations."""
+        # First, check for exact matches in custom techniques
         if technique_name in self.custom_techniques:
             return self.custom_techniques[technique_name]
 
-        # Check imblearn techniques
+        # Then check for exact matches in imblearn techniques
         if technique_name in self._cached_imblearn_techniques:
             module_path, technique_class = self._cached_imblearn_techniques[
                 technique_name
             ]
             return self._wrap_imblearn_technique(technique_class)
 
-        # If not found, try to discover new techniques (in case imblearn was updated)
+        # If no exact match, extract base name if this is a variation with _ or - suffix
+        base_name = None
+        for delimiter in ["_", "-"]:
+            if delimiter in technique_name:
+                parts = technique_name.split(delimiter, 1)
+                if len(parts) > 1 and parts[0]:  # Ensure we have a non-empty base name
+                    base_name = parts[0]
+                    break
+
+        # If we have a valid base name, try to look it up
+        if base_name:
+            # Check custom techniques for the base name
+            if base_name in self.custom_techniques:
+                return self.custom_techniques[base_name]
+
+            # Check imblearn techniques for the base name
+            if base_name in self._cached_imblearn_techniques:
+                module_path, technique_class = self._cached_imblearn_techniques[
+                    base_name
+                ]
+                return self._wrap_imblearn_technique(technique_class)
+
+        # If still not found, try to discover new techniques (in case imblearn was updated)
         self._discover_imblearn_techniques()
+
+        # Try exact match again with freshly discovered techniques
         if technique_name in self._cached_imblearn_techniques:
             module_path, technique_class = self._cached_imblearn_techniques[
                 technique_name
             ]
+            return self._wrap_imblearn_technique(technique_class)
+
+        # Try base name again with freshly discovered techniques
+        if base_name and base_name in self._cached_imblearn_techniques:
+            module_path, technique_class = self._cached_imblearn_techniques[base_name]
             return self._wrap_imblearn_technique(technique_class)
 
         return None
 
     def get_technique_default_params(self, technique_name: str) -> Dict[str, Any]:
         """
-        Extract default parameters from a technique.
+        Extract default parameters from a technique, handling suffixed variations.
 
         Args:
             technique_name: Name of the technique to extract parameters from
@@ -69,19 +98,42 @@ class TechniqueRegistry:
         Returns:
             Dictionary of parameter names and their default values
         """
-
-        # Get the technique class (custom or imblearn)
+        # First check for exact match in custom techniques
         if technique_name in self.custom_techniques:
             technique_class = self.custom_techniques[technique_name]
             return self._extract_params_from_class(technique_class)
-        elif technique_name in self._cached_imblearn_techniques:
+
+        # Then check for exact match in imblearn techniques
+        if technique_name in self._cached_imblearn_techniques:
             _, technique_class = self._cached_imblearn_techniques[technique_name]
             return self._extract_params_from_class(technique_class)
-        else:
-            logging.warning(
-                f"Technique '{technique_name}' not found. Cannot extract parameters."
-            )
-            return {}
+
+        # If no exact match, try to find a base name by removing suffix
+        base_name = None
+        for delimiter in ["_", "-"]:
+            if delimiter in technique_name:
+                parts = technique_name.split(delimiter, 1)
+                if len(parts) > 1 and parts[0]:
+                    base_name = parts[0]
+                    break
+
+        # If we have a valid base name, look it up
+        if base_name:
+            # Check custom techniques for the base name
+            if base_name in self.custom_techniques:
+                technique_class = self.custom_techniques[base_name]
+                return self._extract_params_from_class(technique_class)
+
+            # Check imblearn techniques for the base name
+            if base_name in self._cached_imblearn_techniques:
+                _, technique_class = self._cached_imblearn_techniques[base_name]
+                return self._extract_params_from_class(technique_class)
+
+        # If still not found
+        logging.warning(
+            f"Technique '{technique_name}' not found. Cannot extract parameters."
+        )
+        return {}
 
     def _extract_params_from_class(self, cls) -> Dict[str, Any]:
         """
