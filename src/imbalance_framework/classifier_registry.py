@@ -73,7 +73,7 @@ class ClassifierRegistry:
         self, classifier_name: str, module_name: Optional[str] = None
     ) -> Optional[Type[BaseEstimator]]:
         """
-        Find a classifier class by its name.
+        Find a classifier class by its name, handling suffixed variations.
 
         Args:
             classifier_name: Name of the classifier (e.g., 'RandomForestClassifier')
@@ -82,11 +82,11 @@ class ClassifierRegistry:
         Returns:
             The classifier class if found, None otherwise
         """
-        # Check if it's a custom classifier
+        # First, check for exact matches in custom classifiers
         if classifier_name in self.custom_classifiers:
             return self.custom_classifiers[classifier_name]
 
-        # If user specified a module, only look there
+        # If user specified a module, only look there for exact match first
         if module_name is not None:
             if (
                 module_name in self._cached_sklearn_classifiers
@@ -96,18 +96,50 @@ class ClassifierRegistry:
                     classifier_name
                 ]
                 return classifier_class
-            return None
 
-        # Otherwise, look through all modules
-        for module_dict in self._cached_sklearn_classifiers.values():
-            if classifier_name in module_dict:
-                _, classifier_class = module_dict[classifier_name]
-                return classifier_class
+        # Otherwise, look through all modules for exact match
+        if module_name is None:
+            for module_dict in self._cached_sklearn_classifiers.values():
+                if classifier_name in module_dict:
+                    _, classifier_class = module_dict[classifier_name]
+                    return classifier_class
+
+        # If no exact match, extract base name if this is a variation with _ or - suffix
+        base_name = None
+        for delimiter in ["_", "-"]:
+            if delimiter in classifier_name:
+                parts = classifier_name.split(delimiter, 1)
+                if len(parts) > 1 and parts[0]:  # Ensure we have a non-empty base name
+                    base_name = parts[0]
+                    break
+
+        # If we have a valid base name, look it up
+        if base_name:
+            # Check custom classifiers for the base name
+            if base_name in self.custom_classifiers:
+                return self.custom_classifiers[base_name]
+
+            # If user specified a module, only look there for the base name
+            if module_name is not None:
+                if (
+                    module_name in self._cached_sklearn_classifiers
+                    and base_name in self._cached_sklearn_classifiers[module_name]
+                ):
+                    _, classifier_class = self._cached_sklearn_classifiers[module_name][
+                        base_name
+                    ]
+                    return classifier_class
+            else:
+                # Otherwise, look through all modules for the base name
+                for module_dict in self._cached_sklearn_classifiers.values():
+                    if base_name in module_dict:
+                        _, classifier_class = module_dict[base_name]
+                        return classifier_class
 
         # If not found, try to discover new techniques (in case sklearn was updated)
         self._discover_sklearn_classifiers()
 
-        # Same logic as before, but after rediscovery
+        # Try exact match again with freshly discovered classifiers
         if module_name is not None:
             if (
                 module_name in self._cached_sklearn_classifiers
@@ -122,6 +154,23 @@ class ClassifierRegistry:
                 if classifier_name in module_dict:
                     _, classifier_class = module_dict[classifier_name]
                     return classifier_class
+
+        # Try base name again with freshly discovered classifiers
+        if base_name:
+            if module_name is not None:
+                if (
+                    module_name in self._cached_sklearn_classifiers
+                    and base_name in self._cached_sklearn_classifiers[module_name]
+                ):
+                    _, classifier_class = self._cached_sklearn_classifiers[module_name][
+                        base_name
+                    ]
+                    return classifier_class
+            else:
+                for module_dict in self._cached_sklearn_classifiers.values():
+                    if base_name in module_dict:
+                        _, classifier_class = module_dict[base_name]
+                        return classifier_class
 
         return None
 

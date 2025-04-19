@@ -18,6 +18,19 @@ class MockRandomForestClassifier(BaseEstimator):
         return np.zeros(len(X))
 
 
+# Mock classifier with valid name suffix
+class MockRandomForestClassifier_2(BaseEstimator):
+    def __init__(self, n_estimators=100, random_state=None):
+        self.n_estimators = n_estimators
+        self.random_state = random_state
+
+    def fit(self, X, y):
+        return self
+
+    def predict(self, X):
+        return np.zeros(len(X))
+
+
 class MockLogisticRegression(BaseEstimator):
     def __init__(self, C=1.0, max_iter=100):
         self.C = C
@@ -136,6 +149,10 @@ class TestGetClassifierClass:
         clf_class = registry.get_classifier_class("CustomClassifier")
         assert clf_class is MockRandomForestClassifier
 
+        # Get custom classifier with valid suffix
+        clf_class = registry.get_classifier_class("CustomClassifier-2")
+        assert clf_class is MockRandomForestClassifier
+
     @patch("importlib.import_module")
     def test_get_sklearn_classifier(
         self, mock_importlib, mock_sklearn_modules, registry
@@ -159,6 +176,40 @@ class TestGetClassifierClass:
             "LogisticRegression", module_name="linear_model"
         )
         assert clf_class == MockLogisticRegression
+
+        # Test getting a classifier with a valid suffix and with module specified
+        clf_class = registry.get_classifier_class(
+            "LogisticRegression_2", module_name="linear_model"
+        )
+        assert clf_class == MockLogisticRegression
+
+        # Test getting a classifier with invalid suffix and with module specified
+        clf_class = registry.get_classifier_class(
+            "LogisticRegression.BadSuffix", module_name="linear_model"
+        )
+        assert clf_class is None
+
+    @patch("importlib.import_module")
+    def test_get_classifier_with_suffix(
+        self, mock_importlib, mock_sklearn_modules, registry
+    ):
+        """Test getting a classifier whose full name is not in registry, but base name is"""
+
+        def mock_import(module_path):
+            return mock_sklearn_modules.get(module_path)
+
+        mock_importlib.side_effect = mock_import
+
+        # Force discovery
+        registry._discover_sklearn_classifiers()
+
+        # Test classifier is in registry
+        clf_class = registry.get_classifier_class("RandomForestClassifier")
+        assert clf_class == MockRandomForestClassifier
+
+        # Test getting a classifier with module specified
+        clf_class = registry.get_classifier_class("RandomForestClassifier_2")
+        assert clf_class == MockRandomForestClassifier
 
     @patch("importlib.import_module")
     def test_get_nonexistent_classifier(
@@ -199,6 +250,24 @@ class TestGetClassifierClass:
         # This should trigger _discover_sklearn_classifiers()
         clf_class = registry.get_classifier_class("RandomForestClassifier")
         assert clf_class == MockRandomForestClassifier
+
+        # Test getting a classifier with module specified
+        clf_class = registry.get_classifier_class(
+            "LogisticRegression", module_name="linear_model"
+        )
+        assert clf_class == MockLogisticRegression
+
+        # Test getting a classifier with a valid suffix and with module specified
+        clf_class = registry.get_classifier_class(
+            "LogisticRegression_2", module_name="linear_model"
+        )
+        assert clf_class == MockLogisticRegression
+
+        # Test getting a classifier with invalid suffix and with module specified
+        clf_class = registry.get_classifier_class(
+            "LogisticRegression.BadSuffix", module_name="linear_model"
+        )
+        assert clf_class is None
 
 
 class TestListAvailableClassifiers:
