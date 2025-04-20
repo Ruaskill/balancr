@@ -1612,37 +1612,6 @@ def run_comparison(args):
                             display=display_visualisations,
                         )
 
-                if (
-                    "learning_curves" in vis_types_to_generate
-                    or "all" in visualisations
-                ):
-                    learning_curve_path = (
-                        std_metrics_dir / f"learning_curves.{format_type}"
-                    )
-
-                    start_time = time.time()
-                    logging.info(
-                        f"Generating learning curves for {classifier_name} in {format_type} format..."
-                    )
-
-                    # Get learning curve parameters from config
-                    learning_curve_points = eval_config.get("learning_curve_points", 10)
-                    learning_curve_folds = eval_config.get("learning_curve_folds", 5)
-                    train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
-
-                    # Generate learning curves for particular classifier
-                    framework.generate_learning_curves(
-                        classifier_name=classifier_name,
-                        train_sizes=train_sizes,
-                        n_folds=learning_curve_folds,
-                        save_path=str(learning_curve_path),
-                        display=display_visualisations,
-                    )
-                    learning_curves_time = time.time() - start_time
-                    logging.info(
-                        f"Successfully generated learning curves for {classifier_name}"
-                        f"(Time Taken: {format_time(learning_curves_time)})"
-                    )
         standard_total_time = time.time() - standard_start_time
         logging.info(
             f"Standard metrics evaluation total time: {format_time(standard_total_time)}"
