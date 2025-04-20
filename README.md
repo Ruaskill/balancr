@@ -21,7 +21,8 @@ Balancr allows you to:
 
 ### Core Functionality:
 - **CLI Interface**: Simple command-line interface for full workflow
-- **Data Loading & Preprocessing**: Support for CSV, Excel with customisable preprocessing config
+- **Data Loading**: Support for CSV, and provides a data quality check
+- **Preprocessing**: Configurable preprocessing functionality including handling data quality issues, scaling, and encoding categorical features 
 - **Dynamic Technique Discovery**: Automatic discovery of techniques from imbalanced-learn
 - **Custom Technique Registration**: Register your own balancing techniques
 - **Classifier Selection**: Compare performance across multiple classifiers.
@@ -208,6 +209,46 @@ from my_custom_technique import MyCustomBalancer
 
 registry = TechniqueRegistry()
 registry.register_custom_technique("MyCustomBalancer", MyCustomBalancer)
+```
+
+## Creating Custom Classifiers
+
+You can create and register your own classifiers:
+
+```python
+from sklearn.base import BaseEstimator
+import numpy as np
+
+class MockCustomClassifier(BaseEstimator):
+    def __init__(self, n_estimators, random_state):
+        self.n_estimators = n_estimators
+        self.random_state = random_state
+
+    def fit(self, X, y):
+        # Implement your training logic here
+        # Return self. Fitted estimator.
+        return self
+
+    def predict(self, X):
+        # Implement your prediction logic here
+        # Return your predictions/list of predicitons
+        return np.zeros(len(X))
+```
+
+Register your classifier using the CLI:
+
+```bash
+balancr register-classifier my_custom_classifier.py
+```
+
+Or using the Python API:
+
+```python
+from balancr.classifier_registry import ClassifierRegistry
+from my_custom_classifier import MyCustomClassifier
+
+registry = ClassifierRegistry()
+registry.register_custom_classifier("MyCustomClassifier", MyCustomClassifier)
 ```
 
 ## Requirements
