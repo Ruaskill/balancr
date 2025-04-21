@@ -1,6 +1,6 @@
 from typing import Tuple
 import numpy as np
-from imbalance_framework.base import BaseBalancer
+from balancr.base import BaseBalancer
 
 
 class ExampleCustomBalancer(BaseBalancer):

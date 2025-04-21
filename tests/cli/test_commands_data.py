@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from imbalance_framework.cli import commands
+from balancr.cli import commands
 
 
 @pytest.fixture
@@ -58,8 +58,8 @@ def args_preprocess(mock_config_path):
 class TestLoadDataCommand:
     """Tests for the load_data command."""
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.update_config")
     def test_load_data_success(
         self, mock_update_config, mock_framework_class, args_load_data, mock_framework
     ):
@@ -88,7 +88,7 @@ class TestLoadDataCommand:
         # Verify result
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_load_data_file_not_found(self, mock_error, args_load_data):
         """Test handling of non-existent data file."""
         # Modify args to point to non-existent file
@@ -102,8 +102,8 @@ class TestLoadDataCommand:
         assert "File not found" in mock_error.call_args[0][0]
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_load_data_framework_error(
         self, mock_error, mock_framework_class, args_load_data, mock_framework
     ):
@@ -120,8 +120,8 @@ class TestLoadDataCommand:
         assert "Failed to load data" in mock_error.call_args[0][0]
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework", None)
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.BalancingFramework", None)
+    @patch("balancr.cli.commands.logging.error")
     def test_load_data_no_framework(self, mock_error, args_load_data):
         """Test handling when BalancingFramework is not available."""
         # Call function
@@ -134,8 +134,8 @@ class TestLoadDataCommand:
 class TestPreprocessCommand:
     """Tests for the preprocess command."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_preprocess_success(
         self, mock_update_config, mock_load_config, args_preprocess
     ):
@@ -159,8 +159,8 @@ class TestPreprocessCommand:
         # Verify result
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_preprocess_no_data_file(
         self, mock_error, mock_load_config, args_preprocess
     ):
@@ -176,9 +176,9 @@ class TestPreprocessCommand:
         assert "Failed to configure preprocessing" in mock_error.call_args[0][0]
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_preprocess_config_error(
         self, mock_error, mock_update_config, mock_load_config, args_preprocess
     ):
@@ -200,9 +200,9 @@ class TestPreprocessCommand:
         )
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.config.load_config")
     @patch("builtins.print")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.update_config")
     def test_preprocess_output(
         self, mock_update_config, mock_print, mock_load_config, args_preprocess
     ):

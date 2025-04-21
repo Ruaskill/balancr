@@ -2,7 +2,7 @@ import pytest
 import logging
 from unittest.mock import patch, MagicMock
 
-from imbalance_framework.cli import utils
+from balancr.cli import utils
 
 
 @pytest.fixture

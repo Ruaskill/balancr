@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from imbalance_framework.base import BaseBalancer
+from balancr import BaseBalancer
 
 
 def test_cannot_instantiate_abstract_base():

@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from unittest.mock import patch, MagicMock
 from sklearn.base import BaseEstimator
-from imbalance_framework.classifier_registry import ClassifierRegistry
+from balancr import ClassifierRegistry
 
 
 # Mock classes
@@ -471,7 +471,7 @@ class TestLoadCustomClassifiers:
     @patch("importlib.util.spec_from_file_location")
     @patch("importlib.util.module_from_spec")
     @patch("inspect.getmembers")
-    @patch("imbalance_framework.classifier_registry.logging.warning")
+    @patch("balancr.classifier_registry.logging.warning")
     def test_class_not_found_in_file(
         self,
         mock_warning,
@@ -524,7 +524,7 @@ class TestLoadCustomClassifiers:
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.home")
     @patch("importlib.util.spec_from_file_location")
-    @patch("imbalance_framework.classifier_registry.logging.warning")
+    @patch("balancr.classifier_registry.logging.warning")
     def test_module_loading_error(
         self,
         mock_warning,

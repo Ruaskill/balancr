@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from unittest.mock import mock_open, patch, MagicMock
 
-from imbalance_framework.cli import commands
+from balancr.cli import commands
 from sklearn.base import BaseEstimator
 
 
@@ -44,7 +44,7 @@ def args_select_classifier(mock_config_path):
 class TestSelectClassifierCommand:
     """Tests for the select_classifier command."""
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.ClassifierRegistry")
     def test_list_available_classifiers(
         self, mock_registry_class, args_select_classifier, mock_registry
     ):
@@ -82,8 +82,8 @@ class TestSelectClassifierCommand:
         args_select_classifier.classifiers = []
 
         # Mock ClassifierRegistry to be None
-        with patch("imbalance_framework.cli.commands.ClassifierRegistry", None), patch(
-            "imbalance_framework.cli.commands.logging.error"
+        with patch("balancr.cli.commands.ClassifierRegistry", None), patch(
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call the function
@@ -96,9 +96,9 @@ class TestSelectClassifierCommand:
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands.get_classifier_default_params")
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.get_classifier_default_params")
+    @patch("balancr.cli.config.load_config")
     def test_select_classifiers_success(
         self,
         mock_load_config,
@@ -153,10 +153,10 @@ class TestSelectClassifierCommand:
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands.get_classifier_default_params")
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.get_classifier_default_params")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_select_classifiers_append(
         self,
         mock_update_config,
@@ -205,8 +205,8 @@ class TestSelectClassifierCommand:
         # Verify result
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.logging.error")
     def test_select_invalid_classifiers(
         self, mock_error, mock_registry_class, args_select_classifier
     ):
@@ -236,8 +236,8 @@ class TestSelectClassifierCommand:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry", None)
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.ClassifierRegistry", None)
+    @patch("balancr.cli.commands.logging.error")
     def test_select_classifiers_no_registry(self, mock_error, args_select_classifier):
         """Test classifier selection when registry is not available."""
         # Call function
@@ -250,9 +250,9 @@ class TestSelectClassifierCommand:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands.get_classifier_default_params")
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.get_classifier_default_params")
+    @patch("balancr.cli.config.load_config")
     def test_select_classifiers_config_error(
         self,
         mock_load_config,
@@ -273,7 +273,7 @@ class TestSelectClassifierCommand:
         mock_load_config.side_effect = Exception("Config error")
 
         # Mock logging for error capture
-        with patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+        with patch("balancr.cli.commands.logging.error") as mock_error:
             # Call function
             result = commands.select_classifier(args_select_classifier)
 
@@ -372,7 +372,7 @@ class TestGetClassifierDefaultParams:
         # Parameters with defaults should retain their values
         assert params["optional_param"] is True
 
-    @patch("imbalance_framework.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.logging.warning")
     def test_extract_params_exception_with_name(self, mock_warning):
         """Test handling of exceptions during parameter extraction with a named class."""
 
@@ -433,8 +433,8 @@ class MockClassifier(BaseEstimator):
         args.verbose = False
         return args
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands._register_classifier_from_file")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands._register_classifier_from_file")
     def test_register_classifier_from_file(
         self,
         mock_register_from_file,
@@ -469,8 +469,8 @@ class MockClassifier(BaseEstimator):
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
-    @patch("imbalance_framework.cli.commands._register_classifier_from_file")
+    @patch("balancr.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands._register_classifier_from_file")
     def test_register_classifier_with_custom_name(
         self,
         mock_register_from_file,
@@ -509,7 +509,7 @@ class MockClassifier(BaseEstimator):
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.ClassifierRegistry")
     def test_register_classifier_from_folder(
         self, mock_registry_class, args_register_classifiers, mock_registry, tmp_path
     ):
@@ -551,7 +551,7 @@ class MockClassifier{i}(BaseEstimator):
 
             # Mock _register_classifier_from_file to return success
             with patch(
-                "imbalance_framework.cli.commands._register_classifier_from_file"
+                "balancr.cli.commands._register_classifier_from_file"
             ) as mock_register_from_file:
                 mock_register_from_file.return_value = [
                     f"MockClassifier{i}" for i in range(2)
@@ -582,7 +582,7 @@ class MockClassifier{i}(BaseEstimator):
 
         # Mock _remove_classifiers to return a known value
         with patch(
-            "imbalance_framework.cli.commands._remove_classifiers"
+            "balancr.cli.commands._remove_classifiers"
         ) as mock_remove:
             mock_remove.return_value = 42  # arbitrary return value
 
@@ -601,7 +601,7 @@ class MockClassifier{i}(BaseEstimator):
 
         # Mock _remove_classifiers to return a known value
         with patch(
-            "imbalance_framework.cli.commands._remove_classifiers"
+            "balancr.cli.commands._remove_classifiers"
         ) as mock_remove:
             mock_remove.return_value = 0
 
@@ -618,7 +618,7 @@ class MockClassifier{i}(BaseEstimator):
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_file", return_value=True
         ), patch("pathlib.Path.suffix", ".txt", create=True), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -639,7 +639,7 @@ class MockClassifier{i}(BaseEstimator):
 
         # Mock folder path to not exist
         with patch("pathlib.Path.exists", return_value=False), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -661,7 +661,7 @@ class MockClassifier{i}(BaseEstimator):
         # Mock path to exist but not be a directory
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_dir", return_value=False
-        ), patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+        ), patch("balancr.cli.commands.logging.error") as mock_error:
 
             # Call function
             result = commands.register_classifiers(args_register_classifiers)
@@ -685,11 +685,11 @@ class MockClassifier{i}(BaseEstimator):
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_dir", return_value=True
         ), patch("pathlib.Path.glob") as mock_glob, patch(
-            "imbalance_framework.cli.commands.ClassifierRegistry"
+            "balancr.cli.commands.ClassifierRegistry"
         ) as mock_registry_class, patch(
-            "imbalance_framework.cli.commands._register_classifier_from_file"
+            "balancr.cli.commands._register_classifier_from_file"
         ) as mock_register_from_file, patch(
-            "imbalance_framework.cli.commands.logging.warning"
+            "balancr.cli.commands.logging.warning"
         ) as mock_warning:
 
             # Set up mock registry
@@ -715,7 +715,7 @@ class MockClassifier{i}(BaseEstimator):
         """Test handling of exceptions in register_classifiers."""
         # Make Path.exists raise an exception
         with patch("pathlib.Path.exists", side_effect=Exception("Test error")), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error, patch("traceback.print_exc") as mock_traceback:
 
             # Set up verbose mode
@@ -734,7 +734,7 @@ class MockClassifier{i}(BaseEstimator):
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry")
+    @patch("balancr.cli.commands.ClassifierRegistry")
     def test_register_classifier_file_not_found(
         self, mock_registry_class, args_register_classifiers, mock_registry
     ):
@@ -746,7 +746,7 @@ class MockClassifier{i}(BaseEstimator):
 
         # Mock Path.exists to return False
         with patch("pathlib.Path.exists", return_value=False), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -759,7 +759,7 @@ class MockClassifier{i}(BaseEstimator):
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.ClassifierRegistry", None)
+    @patch("balancr.cli.commands.ClassifierRegistry", None)
     def test_register_classifiers_no_registry(self, args_register_classifiers):
         """Test handling when ClassifierRegistry is not available."""
         # Call function
@@ -816,7 +816,7 @@ class TestRegisterClassifierFromFile:
     @patch("importlib.util.module_from_spec")
     @patch("inspect.getmembers")
     @patch("inspect.isclass")
-    @patch("imbalance_framework.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.logging.warning")
     def test_register_from_file_no_valid_classes(
         self,
         mock_logging_warning,
@@ -888,7 +888,7 @@ class ExistingClassifier(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
             # Call function with a non-existent class name
             result = commands._register_classifier_from_file(
@@ -942,7 +942,7 @@ class ClassifierTwo(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
             # Call function with a custom name but no class specified
             result = commands._register_classifier_from_file(
@@ -961,7 +961,7 @@ class ClassifierTwo(BaseEstimator):
 
     @patch("os.makedirs")
     @patch("importlib.util.spec_from_file_location")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_register_from_file_module_loading_error(
         self, mock_logging_error, mock_spec_from_file, mock_makedirs
     ):
@@ -1028,9 +1028,9 @@ class ClassifierTwo(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.datetime"
+            "balancr.cli.commands.datetime"
         ) as mock_datetime, patch(
-            "imbalance_framework.cli.commands.logging.info"
+            "balancr.cli.commands.logging.info"
         ) as mock_info:
 
             # Set a fixed datetime for reproducibility
@@ -1088,7 +1088,7 @@ class ExistingClassifier(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.warning"
+            "balancr.cli.commands.logging.warning"
         ) as mock_warning:
 
             # Call function without overwrite
@@ -1144,7 +1144,7 @@ class ErrorClassifier(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -1204,9 +1204,9 @@ class SuccessClassifier(BaseEstimator):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.datetime"
+            "balancr.cli.commands.datetime"
         ) as mock_datetime, patch(
-            "imbalance_framework.cli.commands.logging.debug"
+            "balancr.cli.commands.logging.debug"
         ) as mock_debug:
 
             # Set fixed datetime for reproducibility
@@ -1250,7 +1250,7 @@ class SuccessClassifier(BaseEstimator):
         "importlib.util.spec_from_file_location",
         side_effect=Exception("Unexpected failure"),
     )
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_register_from_file_general_exception(self, mock_error_log, mock_spec):
         """Test generic exception handling during classifier loading."""
         mock_registry = MagicMock()
@@ -1274,25 +1274,25 @@ class TestRemoveClassifiersCommand:
     @pytest.fixture
     def mock_custom_dir(self):
         """Patch Path.home() to point to a fake .balancr directory."""
-        with patch("imbalance_framework.cli.commands.Path.home") as mock_home:
+        with patch("balancr.cli.commands.Path.home") as mock_home:
             mock_path = Path("/fake/home")
             mock_home.return_value = mock_path
             yield mock_path / ".balancr" / "custom_classifiers"
 
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_no_metadata_file(self, mock_log, mock_custom_dir):
         """Test when metadata file does not exist."""
         args = MagicMock(remove_all=True)
         metadata_file = mock_custom_dir / "classifiers_metadata.json"
         metadata_file
 
-        with patch("imbalance_framework.cli.commands.Path.exists", return_value=False):
+        with patch("balancr.cli.commands.Path.exists", return_value=False):
             result = commands._remove_classifiers(args)
 
         mock_log.assert_called_once_with("No custom classifiers have been registered.")
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_empty_metadata(self, mock_log, mock_custom_dir):
         """Test when metadata file exists but is empty."""
         args = MagicMock(remove_all=True)
@@ -1300,15 +1300,15 @@ class TestRemoveClassifiersCommand:
         metadata_file
 
         with patch(
-            "imbalance_framework.cli.commands.Path.exists", return_value=True
+            "balancr.cli.commands.Path.exists", return_value=True
         ), patch("builtins.open", mock_open(read_data="{}")):
             result = commands._remove_classifiers(args)
 
         mock_log.assert_called_once_with("No custom classifiers have been registered.")
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.logging.warning")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.logging.info")
     def test_remove_all_classifiers(self, mock_info, mock_warning, mock_custom_dir):
         """Test removing all classifiers and deleting their files."""
         args = MagicMock(remove_all=True)
@@ -1319,11 +1319,11 @@ class TestRemoveClassifiersCommand:
         }
 
         with patch(
-            "imbalance_framework.cli.commands.Path.exists", return_value=True
+            "balancr.cli.commands.Path.exists", return_value=True
         ), patch(
             "builtins.open", mock_open(read_data=json.dumps(metadata))
         ) as mock_file, patch(
-            "imbalance_framework.cli.commands.Path.unlink"
+            "balancr.cli.commands.Path.unlink"
         ) as mock_unlink, patch(
             "json.dump"
         ) as mock_dump:
@@ -1337,9 +1337,9 @@ class TestRemoveClassifiersCommand:
         mock_dump.assert_called_once()
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.logging.warning")
-    @patch("imbalance_framework.cli.commands.Path")
-    @patch("imbalance_framework.cli.commands.Path.exists", return_value=True)
+    @patch("balancr.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.Path")
+    @patch("balancr.cli.commands.Path.exists", return_value=True)
     def test_remove_all_classifiers_file_removal_exception(
         self, mock_exists, mock_path_class, mock_logging_warning, mock_custom_dir
     ):
@@ -1366,7 +1366,7 @@ class TestRemoveClassifiersCommand:
         )
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.logging.warning")
     def test_remove_specific_classifiers(self, mock_warning, mock_custom_dir):
         """Test removing specific classifiers and cleaning up unused files."""
         args = MagicMock(remove=["clfA", "clfX"], remove_all=False)
@@ -1377,11 +1377,11 @@ class TestRemoveClassifiersCommand:
 
         # clfA should be removed, clfX should trigger a warning
         with patch(
-            "imbalance_framework.cli.commands.Path.exists", return_value=True
+            "balancr.cli.commands.Path.exists", return_value=True
         ), patch(
             "builtins.open", mock_open(read_data=json.dumps(metadata))
         ) as mock_file, patch(
-            "imbalance_framework.cli.commands.Path.unlink"
+            "balancr.cli.commands.Path.unlink"
         ) as mock_unlink, patch(
             "json.dump"
         ) as mock_dump:
@@ -1395,7 +1395,7 @@ class TestRemoveClassifiersCommand:
         mock_unlink.assert_called_once_with(missing_ok=True)
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_remove_specific_classifiers_none_found(self, mock_log, mock_custom_dir):
         """Test when no matching classifiers are found."""
         args = MagicMock(remove=["clfX"], remove_all=False)
@@ -1405,9 +1405,9 @@ class TestRemoveClassifiersCommand:
         }
 
         with patch(
-            "imbalance_framework.cli.commands.Path.exists", return_value=True
+            "balancr.cli.commands.Path.exists", return_value=True
         ), patch("builtins.open", mock_open(read_data=json.dumps(metadata))), patch(
-            "imbalance_framework.cli.commands.Path.unlink"
+            "balancr.cli.commands.Path.unlink"
         ) as mock_unlink, patch(
             "json.dump"
         ) as mock_dump:
@@ -1418,9 +1418,9 @@ class TestRemoveClassifiersCommand:
         mock_unlink.assert_not_called()
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.logging.warning")
-    @patch("imbalance_framework.cli.commands.Path")
-    @patch("imbalance_framework.cli.commands.Path.exists", return_value=True)
+    @patch("balancr.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.Path")
+    @patch("balancr.cli.commands.Path.exists", return_value=True)
     def test_remove_specific_classifier_file_removal_exception(
         self, mock_exists, mock_path_class, mock_logging_warning, mock_custom_dir
     ):

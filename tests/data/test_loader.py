@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from data.loader import DataLoader
+from balancr.data import DataLoader
 
 
 @pytest.fixture

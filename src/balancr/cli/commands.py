@@ -12,11 +12,11 @@ import importlib
 import logging
 import json
 import inspect
-from data.preprocessor import DataPreprocessor
+from balancr.data import DataPreprocessor
 import numpy as np
 from pathlib import Path
 
-from evaluation.visualisation import (
+from balancr.evaluation import (
     plot_comparison_results,
     plot_radar_chart,
     plot_3d_scatter,
@@ -24,13 +24,13 @@ from evaluation.visualisation import (
 import pandas as pd
 
 from . import config
-from imbalance_framework.base import BaseBalancer
+from balancr import BaseBalancer
 
 # Will be used to interact with the core balancing framework
 try:
-    from imbalance_framework.imbalance_analyser import BalancingFramework
-    from imbalance_framework.technique_registry import TechniqueRegistry
-    from imbalance_framework.classifier_registry import ClassifierRegistry
+    from balancr import BalancingFramework
+    from balancr import TechniqueRegistry
+    from balancr import ClassifierRegistry
 except ImportError as e:
     logging.error(f"Could not import balancing framework: {str(e)}")
     logging.error(
@@ -485,7 +485,7 @@ def _register_from_file(
         if not technique_classes:
             logging.warning(f"No valid technique classes found in {file_path}")
             logging.info(
-                "Classes must inherit from imbalance_framework.base.BaseBalancer"
+                "Classes must inherit from balancr.base.BaseBalancer"
             )
             return registered_techniques
 

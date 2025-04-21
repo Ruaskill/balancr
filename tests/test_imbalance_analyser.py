@@ -2,8 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from unittest.mock import patch, MagicMock
-from imbalance_framework.imbalance_analyser import BalancingFramework
-from imbalance_framework.base import BaseBalancer
+from balancr import BalancingFramework, BaseBalancer
 
 
 # Mock classes and fixtures
@@ -93,7 +92,7 @@ def mock_registry(monkeypatch):
     }
     mock.get_technique_class.return_value = MockTechnique
     monkeypatch.setattr(
-        "imbalance_framework.technique_registry.TechniqueRegistry", lambda: mock
+        "balancr.technique_registry.TechniqueRegistry", lambda: mock
     )
     return mock
 
@@ -116,7 +115,7 @@ def test_train_classifiers_no_test_data(framework_with_balanced_data):
         framework.train_classifiers()
 
 
-@patch("imbalance_framework.imbalance_analyser.get_metrics")
+@patch("balancr.imbalance_analyser.get_metrics")
 def test_train_classifiers_default_classifier(
     mock_get_metrics, framework_with_balanced_data
 ):
@@ -149,8 +148,8 @@ def test_train_classifiers_default_classifier(
     assert mock_get_metrics.call_count == 2
 
 
-@patch("imbalance_framework.imbalance_analyser.get_metrics")
-@patch("imbalance_framework.imbalance_analyser.get_cv_scores")
+@patch("balancr.imbalance_analyser.get_metrics")
+@patch("balancr.imbalance_analyser.get_cv_scores")
 def test_train_classifiers_with_cv(
     mock_get_cv_scores, mock_get_metrics, framework_with_balanced_data
 ):
@@ -188,7 +187,7 @@ def test_train_classifiers_with_cv(
     )
 
 
-@patch("imbalance_framework.imbalance_analyser.get_metrics")
+@patch("balancr.imbalance_analyser.get_metrics")
 def test_train_classifiers_custom_classifiers(
     mock_get_metrics, framework_with_balanced_data
 ):
@@ -248,7 +247,7 @@ def test_train_classifiers_custom_classifiers(
     assert "RandomUnderSampler" in techniques
 
 
-@patch("imbalance_framework.imbalance_analyser.get_metrics")
+@patch("balancr.imbalance_analyser.get_metrics")
 @patch("logging.error")
 def test_train_classifiers_with_error(
     mock_logging_error, mock_get_metrics, framework_with_balanced_data

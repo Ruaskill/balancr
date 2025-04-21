@@ -5,8 +5,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
 
-from imbalance_framework.cli import commands
-from imbalance_framework.base import BaseBalancer
+from balancr.cli import commands
+from balancr import BaseBalancer
 
 
 class MockTechnique(BaseBalancer):
@@ -44,7 +44,7 @@ def mock_technique_file(tmp_path):
     with open(technique_file, "w") as f:
         f.write(
             """
-from imbalance_framework.base import BaseBalancer
+from balancr.base import BaseBalancer
 
 class MockTechnique(BaseBalancer):
     def balance(self, X, y):
@@ -85,7 +85,7 @@ def args_register_techniques(mock_config_path, mock_technique_file):
 class TestSelectTechniquesCommand:
     """Tests for the select_techniques command."""
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_list_available_techniques(
         self, mock_framework_class, args_select_techniques, mock_registry
     ):
@@ -120,8 +120,8 @@ class TestSelectTechniquesCommand:
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
     def test_select_techniques_success(
         self,
         mock_load_config,
@@ -168,9 +168,9 @@ class TestSelectTechniquesCommand:
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_select_techniques_append(
         self,
         mock_update_config,
@@ -213,8 +213,8 @@ class TestSelectTechniquesCommand:
         # Verify result
         assert result == 0
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_select_invalid_techniques(
         self, mock_error, mock_framework_class, args_select_techniques
     ):
@@ -240,8 +240,8 @@ class TestSelectTechniquesCommand:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework", None)
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework", None)
+    @patch("balancr.cli.config.load_config")
     def test_select_techniques_no_framework(
         self, mock_load_config, args_select_techniques
     ):
@@ -270,7 +270,7 @@ class TestSelectTechniquesCommand:
             # When framework is not available, empty dict is used
             assert config_arg["balancing_techniques"] == {}
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_list_available_techniques_error(
         self, mock_framework_class, args_select_techniques
     ):
@@ -285,7 +285,7 @@ class TestSelectTechniquesCommand:
         )
 
         # Mock logging.error
-        with patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+        with patch("balancr.cli.commands.logging.error") as mock_error:
             # Call function
             result = commands.select_techniques(args_select_techniques)
 
@@ -296,8 +296,8 @@ class TestSelectTechniquesCommand:
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
     def test_select_techniques_error(
         self, mock_load_config, mock_framework_class, args_select_techniques
     ):
@@ -314,10 +314,10 @@ class TestSelectTechniquesCommand:
         mock_load_config.return_value = {}
 
         with patch(
-            "imbalance_framework.cli.config.update_config",
+            "balancr.cli.config.update_config",
             side_effect=Exception("Test error"),
         ) as mock_update_config, patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
             mock_update_config
 
@@ -335,8 +335,8 @@ class TestSelectTechniquesCommand:
 class TestRegisterTechniquesCommand:
     """Tests for the register_techniques command."""
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
-    @patch("imbalance_framework.cli.commands._register_from_file")
+    @patch("balancr.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands._register_from_file")
     def test_register_technique_from_file(
         self,
         mock_register_from_file,
@@ -371,8 +371,8 @@ class TestRegisterTechniquesCommand:
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
-    @patch("imbalance_framework.cli.commands._register_from_file")
+    @patch("balancr.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands._register_from_file")
     def test_register_technique_with_custom_name(
         self,
         mock_register_from_file,
@@ -411,7 +411,7 @@ class TestRegisterTechniquesCommand:
             # Verify result
             assert result == 0
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands.TechniqueRegistry")
     def test_register_technique_from_folder(
         self, mock_registry_class, args_register_techniques, mock_registry, tmp_path
     ):
@@ -427,7 +427,7 @@ class TestRegisterTechniquesCommand:
             with open(folder_path / f"technique{i}.py", "w") as f:
                 f.write(
                     f"""
-from imbalance_framework.base import BaseBalancer
+from balancr.base import BaseBalancer
 
 class MockTechnique{i}(BaseBalancer):
     def balance(self, X, y):
@@ -447,7 +447,7 @@ class MockTechnique{i}(BaseBalancer):
 
             # Mock _register_from_file to return success
             with patch(
-                "imbalance_framework.cli.commands._register_from_file"
+                "balancr.cli.commands._register_from_file"
             ) as mock_register_from_file:
                 mock_register_from_file.return_value = [
                     f"MockTechnique{i}" for i in range(2)
@@ -478,7 +478,7 @@ class MockTechnique{i}(BaseBalancer):
 
         # Mock _remove_techniques to return a known value
         with patch(
-            "imbalance_framework.cli.commands._remove_techniques"
+            "balancr.cli.commands._remove_techniques"
         ) as mock_remove:
             mock_remove.return_value = 42  # arbitrary return value
 
@@ -495,7 +495,7 @@ class MockTechnique{i}(BaseBalancer):
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_file", return_value=True
         ), patch("pathlib.Path.suffix", ".txt", create=True), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -516,7 +516,7 @@ class MockTechnique{i}(BaseBalancer):
 
         # Mock folder path to not exist
         with patch("pathlib.Path.exists", return_value=False), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -538,7 +538,7 @@ class MockTechnique{i}(BaseBalancer):
         # Mock path to exist but not be a directory
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_dir", return_value=False
-        ), patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+        ), patch("balancr.cli.commands.logging.error") as mock_error:
 
             # Call function
             result = commands.register_techniques(args_register_techniques)
@@ -562,11 +562,11 @@ class MockTechnique{i}(BaseBalancer):
         with patch("pathlib.Path.exists", return_value=True), patch(
             "pathlib.Path.is_dir", return_value=True
         ), patch("pathlib.Path.glob") as mock_glob, patch(
-            "imbalance_framework.cli.commands.TechniqueRegistry"
+            "balancr.cli.commands.TechniqueRegistry"
         ) as mock_registry_class, patch(
-            "imbalance_framework.cli.commands._register_from_file"
+            "balancr.cli.commands._register_from_file"
         ) as mock_register_from_file, patch(
-            "imbalance_framework.cli.commands.logging.warning"
+            "balancr.cli.commands.logging.warning"
         ) as mock_warning:
 
             # Set up mock registry
@@ -592,7 +592,7 @@ class MockTechnique{i}(BaseBalancer):
         """Test handling of exceptions in register_techniques."""
         # Make Path.exists raise an exception
         with patch("pathlib.Path.exists", side_effect=Exception("Test error")), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error, patch("traceback.print_exc") as mock_traceback:
 
             # Set up verbose mode
@@ -611,7 +611,7 @@ class MockTechnique{i}(BaseBalancer):
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands.TechniqueRegistry")
     def test_register_technique_file_not_found(
         self, mock_registry_class, args_register_techniques, mock_registry
     ):
@@ -630,7 +630,7 @@ class MockTechnique{i}(BaseBalancer):
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry", None)
+    @patch("balancr.cli.commands.TechniqueRegistry", None)
     def test_register_techniques_no_registry(self, args_register_techniques):
         """Test handling when TechniqueRegistry is not available."""
         # Call function
@@ -675,7 +675,7 @@ class TestRegisterFromFile:
     @patch("importlib.util.module_from_spec")
     @patch("inspect.getmembers")
     @patch("inspect.isclass")
-    @patch("imbalance_framework.cli.commands.logging.warning")
+    @patch("balancr.cli.commands.logging.warning")
     def test_register_from_file_no_valid_classes(
         self,
         mock_logging_warning,
@@ -726,7 +726,7 @@ class TestRegisterFromFile:
 
         # Create a real Python file with an actual technique class
         technique_file = tmp_path / "single_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class ExistingTechnique(BaseBalancer):
     def balance(self, X, y):
@@ -742,7 +742,7 @@ class ExistingTechnique(BaseBalancer):
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path):
             # Mock logging functions
-            with patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+            with patch("balancr.cli.commands.logging.error") as mock_error:
                 # Call function with a non-existent class name
                 result = commands._register_from_file(
                     mock_registry, technique_file, None, "NonExistentClass", False
@@ -764,7 +764,7 @@ class ExistingTechnique(BaseBalancer):
 
         # Create a real Python file with multiple technique classes - properly formatted
         technique_file = tmp_path / "multi_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class TechniqueOne(BaseBalancer):
     def balance(self, X, y):
@@ -784,7 +784,7 @@ class TechniqueTwo(BaseBalancer):
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path):
             # Mock logging functions
-            with patch("imbalance_framework.cli.commands.logging.error") as mock_error:
+            with patch("balancr.cli.commands.logging.error") as mock_error:
                 # Call function with a custom name but no class specified
                 result = commands._register_from_file(
                     mock_registry, technique_file, "CustomName", None, False
@@ -802,7 +802,7 @@ class TechniqueTwo(BaseBalancer):
 
     @patch("os.makedirs")
     @patch("importlib.util.spec_from_file_location")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.commands.logging.error")
     def test_register_from_file_module_loading_error(
         self, mock_logging_error, mock_spec_from_file, mock_makedirs
     ):
@@ -826,8 +826,8 @@ class TechniqueTwo(BaseBalancer):
         # Verify no techniques were registered
         assert len(result) == 0
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
-    @patch("imbalance_framework.cli.commands._register_from_file")
+    @patch("balancr.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands._register_from_file")
     def test_register_from_file_is_called_correctly(
         self, mock_register_from_file, mock_registry_class
     ):
@@ -877,7 +877,7 @@ class TechniqueTwo(BaseBalancer):
 
         # Create a real Python file with multiple technique classes
         technique_file = tmp_path / "multi_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class TechniqueOne(BaseBalancer):
     def balance(self, X, y):
@@ -900,9 +900,9 @@ class TechniqueTwo(BaseBalancer):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.datetime"
+            "balancr.cli.commands.datetime"
         ) as mock_datetime, patch(
-            "imbalance_framework.cli.commands.logging.info"
+            "balancr.cli.commands.logging.info"
         ) as mock_info:
 
             # Set a fixed datetime for reproducibility
@@ -935,7 +935,7 @@ class TechniqueTwo(BaseBalancer):
 
         # Create a real Python file with a technique class
         technique_file = tmp_path / "existing_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class ExistingTechnique(BaseBalancer):
     def balance(self, X, y):
@@ -954,7 +954,7 @@ class ExistingTechnique(BaseBalancer):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.warning"
+            "balancr.cli.commands.logging.warning"
         ) as mock_warning:
 
             # Call function without overwrite
@@ -982,7 +982,7 @@ class ExistingTechnique(BaseBalancer):
 
         # Create a real Python file with a technique class
         technique_file = tmp_path / "error_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class ErrorTechnique(BaseBalancer):
     def balance(self, X, y):
@@ -1004,7 +1004,7 @@ class ErrorTechnique(BaseBalancer):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.logging.error"
+            "balancr.cli.commands.logging.error"
         ) as mock_error:
 
             # Call function
@@ -1034,7 +1034,7 @@ class ErrorTechnique(BaseBalancer):
 
         # Create a real Python file with a technique class
         technique_file = tmp_path / "success_technique.py"
-        code = """from imbalance_framework.base import BaseBalancer
+        code = """from balancr.base import BaseBalancer
 
 class SuccessTechnique(BaseBalancer):
     def balance(self, X, y):
@@ -1058,9 +1058,9 @@ class SuccessTechnique(BaseBalancer):
 
         # Mock Path.home to return our temporary directory
         with patch("pathlib.Path.home", return_value=tmp_path), patch(
-            "imbalance_framework.cli.commands.datetime"
+            "balancr.cli.commands.datetime"
         ) as mock_datetime, patch(
-            "imbalance_framework.cli.commands.logging.debug"
+            "balancr.cli.commands.logging.debug"
         ) as mock_debug:
 
             # Set fixed datetime for reproducibility
@@ -1102,7 +1102,7 @@ class SuccessTechnique(BaseBalancer):
 
 
 class TestRemoveTechniquesCommand:
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands.TechniqueRegistry")
     def test_remove_techniques(
         self, mock_registry_class, args_register_techniques, mock_registry
     ):
@@ -1152,7 +1152,7 @@ class TestRemoveTechniquesCommand:
             assert "CustomTechnique1" not in new_metadata
             assert "CustomTechnique2" in new_metadata
 
-    @patch("imbalance_framework.cli.commands.TechniqueRegistry")
+    @patch("balancr.cli.commands.TechniqueRegistry")
     def test_remove_all_techniques(
         self, mock_registry_class, args_register_techniques, mock_registry
     ):
@@ -1201,7 +1201,7 @@ class TestRemoveTechniquesCommand:
             new_metadata = mock_json_dump.call_args[0][0]
             assert new_metadata == {}
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_metadata_file_missing(self, mock_logging):
         """Test when metadata file does not exist."""
         args = MagicMock()
@@ -1214,7 +1214,7 @@ class TestRemoveTechniquesCommand:
         assert result == 1
         mock_logging.error.assert_called_once_with("No custom techniques have been registered.")
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_empty_metadata_file(self, mock_logging):
         """Test when metadata file exists but is empty."""
         args = MagicMock()
@@ -1229,7 +1229,7 @@ class TestRemoveTechniquesCommand:
         assert result == 1
         mock_logging.error.assert_called_once_with("No custom techniques have been registered.")
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_exception_removing_file_remove_all(self, mock_logging):
         """Test file deletion exception when removing all techniques."""
         args = MagicMock()
@@ -1253,7 +1253,7 @@ class TestRemoveTechniquesCommand:
         mock_logging.warning.assert_called_once()
         assert "Error removing file" in mock_logging.warning.call_args[0][0]
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_exception_removing_file_specific_technique(self, mock_logging):
         """Test exception when removing a file for specific technique."""
         args = MagicMock()
@@ -1277,7 +1277,7 @@ class TestRemoveTechniquesCommand:
         mock_logging.warning.assert_called_once()
         assert "Error removing file" in mock_logging.warning.call_args[0][0]
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_technique_not_found(self, mock_logging):
         """Test trying to remove a technique not in metadata."""
         args = MagicMock()
@@ -1298,7 +1298,7 @@ class TestRemoveTechniquesCommand:
         assert result == 1
         mock_logging.warning.assert_called_once_with("Technique 'NonExistentTechnique' not found.")
 
-    @patch("imbalance_framework.cli.commands.logging")
+    @patch("balancr.cli.commands.logging")
     def test_no_matching_techniques_removed(self, mock_logging):
         """Test when no valid techniques are removed from metadata."""
         args = MagicMock()

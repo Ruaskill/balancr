@@ -8,15 +8,15 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 
 from .technique_registry import TechniqueRegistry
-from data.loader import DataLoader
+from .data import DataLoader
 from .classifier_registry import ClassifierRegistry
-from data.preprocessor import DataPreprocessor
-from evaluation.metrics import (
+from .data import DataPreprocessor
+from .evaluation import (
     get_metrics,
     get_cv_scores,
     get_learning_curve_data_multiple_techniques,
 )
-from evaluation.visualisation import (
+from .evaluation import (
     plot_class_distribution,
     plot_class_distributions_comparison,
     plot_comparison_results,
