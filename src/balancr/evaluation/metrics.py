@@ -4,6 +4,8 @@ import logging
 import time
 from typing import Dict
 import numpy as np
+import pandas as pd
+from sklearn.base import clone
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -13,7 +15,7 @@ from sklearn.metrics import (
     average_precision_score,
     confusion_matrix,
 )
-from sklearn.model_selection import learning_curve
+from sklearn.model_selection import StratifiedKFold, learning_curve
 
 
 def format_time(seconds):
@@ -415,8 +417,8 @@ def get_learning_curve_data_multiple_techniques(
 
         start_time = time.time()
         logging.info(
-            f"Generating learning curve for {classifier_name} trained on data"
-            f"balanced by {technique_name}..."
+            f"Generating learning curve for {classifier_name} trained on data "
+            f"balanced by {technique_name}, against balanced data..."
         )
         train_sizes_abs, train_scores, val_scores = learning_curve(
             estimator=classifier,
@@ -429,14 +431,94 @@ def get_learning_curve_data_multiple_techniques(
         )
         curve_generating_time = time.time() - start_time
         logging.info(
-            f"Generated learning curve for {classifier_name} trained on data"
-            f"balanced by {technique_name} (Time Taken: {format_time(curve_generating_time)})"
+            f"Generated learning curve for {classifier_name} trained on data "
+            f"balanced by {technique_name}, against balanced data"
+            f"(Time Taken: {format_time(curve_generating_time)})"
         )
 
         learning_curve_data[technique_name] = {
             "train_sizes": train_sizes_abs,
             "train_scores": train_scores,
             "val_scores": val_scores,
+        }
+
+    return learning_curve_data
+
+
+def get_learning_curve_data_against_imbalanced_multiple_techniques(
+    classifier_name: str,
+    classifier,
+    techniques_data: Dict[str, Dict[str, np.ndarray]],
+    X_test,
+    y_test,
+    train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
+    n_folds: int = 5,
+) -> Dict[str, Dict[str, np.ndarray]]:
+    """
+    Custom learning curve function that trains on balanced data
+    and evaluates on original imbalanced test set.
+
+    Returns training and validation scores at each learning curve point.
+    Validation scores are computed on X_test / y_test.
+    """
+
+    def safe_index(X, indices):
+        return X.iloc[indices] if isinstance(X, (pd.DataFrame, pd.Series)) else X[indices]
+
+    learning_curve_data = {}
+
+    for technique_name, data in techniques_data.items():
+        X_balanced = data["X_balanced"]
+        y_balanced = data["y_balanced"]
+
+        n_samples = X_balanced.shape[0]
+        train_sizes_abs = (train_sizes * n_samples).astype(int)
+
+        train_scores = []
+        val_scores = []
+
+        start_time = time.time()
+        logging.info(
+            f"Generating learning curve for {classifier_name} trained on data "
+            f"balanced by {technique_name}, against original test data..."
+        )
+
+        for train_size in train_sizes_abs:
+            X_subset = safe_index(X_balanced, np.arange(train_size))
+            y_subset = safe_index(y_balanced, np.arange(train_size))
+
+            fold_train_scores = []
+            fold_val_scores = []
+
+            kf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+            for train_idx, _ in kf.split(X_subset, y_subset):
+                X_fold_train = safe_index(X_subset, train_idx)
+                y_fold_train = safe_index(y_subset, train_idx)
+
+                clf = clone(classifier)
+                clf.fit(X_fold_train, y_fold_train)
+
+                train_acc = clf.score(X_fold_train, y_fold_train)
+                val_acc = clf.score(X_test, y_test)
+
+                fold_train_scores.append(train_acc)
+                fold_val_scores.append(val_acc)
+
+            train_scores.append(fold_train_scores)
+            val_scores.append(fold_val_scores)
+
+        curve_generating_time = time.time() - start_time
+        logging.info(
+            f"Generated learning curve for {classifier_name} trained on data "
+            f"balanced by {technique_name}, against original test data "
+            f"(Time Taken: {format_time(curve_generating_time)})"
+        )
+
+        learning_curve_data[technique_name] = {
+            "train_sizes": train_sizes_abs,
+            "train_scores": np.array(train_scores),
+            "val_scores": np.array(val_scores),
         }
 
     return learning_curve_data

@@ -1,11 +1,13 @@
 import pytest
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from balancr.evaluation import (
     get_metrics,
     get_cv_scores,
     get_learning_curve_data,
     get_learning_curve_data_multiple_techniques,
+    get_learning_curve_data_against_imbalanced_multiple_techniques,
 )
 
 
@@ -16,6 +18,41 @@ def sample_data():
     X = np.random.rand(100, 4)
     y = np.random.randint(0, 2, 100)
     return X, y
+
+
+@pytest.fixture
+def sample_balanced_data():
+    """Create sample balanced datasets for multiple techniques"""
+    np.random.seed(42)
+
+    # First technique data
+    X_balanced_1 = np.random.rand(100, 4)
+    y_balanced_1 = np.random.randint(0, 2, 100)
+
+    # Second technique data
+    X_balanced_2 = np.random.rand(80, 4)
+    y_balanced_2 = np.random.randint(0, 2, 80)
+
+    return {
+        "SMOTE": {"X_balanced": X_balanced_1, "y_balanced": y_balanced_1},
+        "RandomUnderSampler": {"X_balanced": X_balanced_2, "y_balanced": y_balanced_2},
+    }
+
+
+@pytest.fixture
+def sample_imbalanced_test_data():
+    """Create sample imbalanced test data"""
+    np.random.seed(42)
+    X_test = np.random.rand(50, 4)
+    # Create imbalanced test set (80% class 0, 20% class 1)
+    y_test = np.concatenate([np.zeros(40), np.ones(10)])
+    return X_test, y_test
+
+
+@pytest.fixture
+def mock_classifier():
+    """Create a classifier instance for testing"""
+    return RandomForestClassifier(n_estimators=10, random_state=42)
 
 
 @pytest.fixture
@@ -145,7 +182,9 @@ def test_get_metrics_multiclass_classification():
             assert 0 <= value <= 1
 
 
-@pytest.mark.filterwarnings("ignore:Precision is ill-defined:sklearn.exceptions.UndefinedMetricWarning")
+@pytest.mark.filterwarnings(
+    "ignore:Precision is ill-defined:sklearn.exceptions.UndefinedMetricWarning"
+)
 def test_get_metrics_with_classifier_without_proba():
     """Test get_metrics with a classifier that doesn't support predict_proba"""
 
@@ -355,3 +394,151 @@ def test_get_learning_curve_data_multiple_techniques(sample_data, classifier):
         assert technique_data["train_sizes"].shape == (n_sizes,)
         assert technique_data["train_scores"].shape == (n_sizes, n_splits)
         assert technique_data["val_scores"].shape == (n_sizes, n_splits)
+
+
+def test_get_learning_curve_data_against_imbalanced_structure(
+    sample_balanced_data, sample_imbalanced_test_data, mock_classifier
+):
+    """Test if function returns the correct structure"""
+    X_test, y_test = sample_imbalanced_test_data
+
+    # Use a smaller number of train sizes for faster testing
+    train_sizes = np.linspace(0.2, 1.0, 3)
+    n_folds = 2  # Use fewer folds for faster testing
+
+    learning_curve_data = (
+        get_learning_curve_data_against_imbalanced_multiple_techniques(
+            "RandomForestClassifier",
+            mock_classifier,
+            sample_balanced_data,
+            X_test,
+            y_test,
+            train_sizes=train_sizes,
+            n_folds=n_folds,
+        )
+    )
+
+    # Check if function returns correct structure
+    assert isinstance(learning_curve_data, dict)
+
+    # Check if all techniques are present
+    assert set(learning_curve_data.keys()) == set(sample_balanced_data.keys())
+
+    # Check each technique's data structure
+    for technique, data in learning_curve_data.items():
+        # Check if all expected keys are present
+        assert set(data.keys()) == {"train_sizes", "train_scores", "val_scores"}
+
+        # Check if arrays have the right shape
+        n_sizes = len(train_sizes)
+        assert data["train_sizes"].shape == (n_sizes,)
+        assert data["train_scores"].shape == (n_sizes, n_folds)
+        assert data["val_scores"].shape == (n_sizes, n_folds)
+
+
+def test_get_learning_curve_data_against_imbalanced_correctness(
+    sample_balanced_data, sample_imbalanced_test_data, mock_classifier
+):
+    """Test if function produces sensible results"""
+    X_test, y_test = sample_imbalanced_test_data
+
+    # Use smaller numbers for faster testing
+    train_sizes = np.linspace(0.5, 1.0, 2)
+    n_folds = 2
+
+    learning_curve_data = (
+        get_learning_curve_data_against_imbalanced_multiple_techniques(
+            "RandomForestClassifier",
+            mock_classifier,
+            sample_balanced_data,
+            X_test,
+            y_test,
+            train_sizes=train_sizes,
+            n_folds=n_folds,
+        )
+    )
+
+    # Check for sensible values in each technique's data
+    for technique, data in learning_curve_data.items():
+        # Check if train_sizes are absolute counts and match expected values
+        expected_samples = sample_balanced_data[technique]["X_balanced"].shape[0]
+        expected_train_sizes = (train_sizes * expected_samples).astype(int)
+        np.testing.assert_array_equal(data["train_sizes"], expected_train_sizes)
+
+        # Check if scores are in valid range [0, 1]
+        assert np.all(data["train_scores"] >= 0) and np.all(data["train_scores"] <= 1)
+        assert np.all(data["val_scores"] >= 0) and np.all(data["val_scores"] <= 1)
+
+        # Check if training scores increase with more data (or at least don't decrease significantly)
+        # This is a probabilistic property, might not always hold, so we're just checking
+        # that it doesn't decrease dramatically
+        mean_train_scores = np.mean(data["train_scores"], axis=1)
+        if len(mean_train_scores) > 1:
+            # Training scores should not decrease dramatically with more data
+            assert mean_train_scores[-1] >= mean_train_scores[0] * 0.8
+
+
+def test_get_learning_curve_data_against_imbalanced_pandas_input(
+    sample_balanced_data, sample_imbalanced_test_data, mock_classifier
+):
+    """Test if function handles pandas DataFrames correctly"""
+    X_test, y_test = sample_imbalanced_test_data
+
+    # Convert numpy arrays to pandas DataFrame/Series
+    X_test_df = pd.DataFrame(
+        X_test, columns=[f"feature_{i}" for i in range(X_test.shape[1])]
+    )
+    y_test_series = pd.Series(y_test)
+
+    # Convert balanced data to pandas too
+    pandas_balanced_data = {}
+    for technique, data in sample_balanced_data.items():
+        X_cols = [f"feature_{i}" for i in range(data["X_balanced"].shape[1])]
+        pandas_balanced_data[technique] = {
+            "X_balanced": pd.DataFrame(data["X_balanced"], columns=X_cols),
+            "y_balanced": pd.Series(data["y_balanced"]),
+        }
+
+    train_sizes = np.linspace(0.5, 1.0, 2)
+    n_folds = 2
+
+    # Run function with pandas inputs
+    learning_curve_data = (
+        get_learning_curve_data_against_imbalanced_multiple_techniques(
+            "RandomForestClassifier",
+            mock_classifier,
+            pandas_balanced_data,
+            X_test_df,
+            y_test_series,
+            train_sizes=train_sizes,
+            n_folds=n_folds,
+        )
+    )
+
+    # Basic structure check
+    assert isinstance(learning_curve_data, dict)
+    assert set(learning_curve_data.keys()) == set(pandas_balanced_data.keys())
+
+    # Check shapes and value ranges
+    for technique, data in learning_curve_data.items():
+        expected_samples = pandas_balanced_data[technique]["X_balanced"].shape[0]
+        expected_train_sizes = (train_sizes * expected_samples).astype(int)
+        np.testing.assert_array_equal(data["train_sizes"], expected_train_sizes)
+
+        assert np.all(data["train_scores"] >= 0) and np.all(data["train_scores"] <= 1)
+        assert np.all(data["val_scores"] >= 0) and np.all(data["val_scores"] <= 1)
+
+
+def test_get_learning_curve_data_against_imbalanced_empty_input():
+    """Test if function handles empty input correctly"""
+    empty_data = {}
+    X_test = np.random.rand(10, 4)
+    y_test = np.random.randint(0, 2, 10)
+    clf = RandomForestClassifier()
+
+    # Function should return empty dictionary when no techniques data is provided
+    result = get_learning_curve_data_against_imbalanced_multiple_techniques(
+        "RandomForestClassifier", clf, empty_data, X_test, y_test
+    )
+    assert isinstance(result, dict)
+    assert len(result) == 0
