@@ -7,6 +7,7 @@ from .metrics import (
     get_cv_scores,
     get_learning_curve_data,
     get_learning_curve_data_multiple_techniques,
+    get_learning_curve_data_against_imbalanced_multiple_techniques
 )
 
 from .visualisation import (

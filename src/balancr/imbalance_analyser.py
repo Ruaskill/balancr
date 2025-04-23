@@ -15,6 +15,7 @@ from .evaluation import (
     get_metrics,
     get_cv_scores,
     get_learning_curve_data_multiple_techniques,
+    get_learning_curve_data_against_imbalanced_multiple_techniques,
 )
 from .evaluation import (
     plot_class_distribution,
@@ -558,6 +559,7 @@ class BalancingFramework:
     def generate_learning_curves(
         self,
         classifier_name: str,
+        learning_curve_type: str,
         train_sizes: np.ndarray = np.linspace(0.1, 1.0, 10),
         n_folds: int = 5,
         save_path: Optional[str] = None,
@@ -598,19 +600,39 @@ class BalancingFramework:
             # Create classifier instance with the same parameters used in training
             classifier = clf_class(**clf_params)
 
-            learning_curve_data = get_learning_curve_data_multiple_techniques(
-                classifier_name=classifier_name,
-                classifier=classifier,
-                techniques_data=self.current_balanced_datasets,
-                train_sizes=train_sizes,
-                n_folds=n_folds,
-            )
+            if learning_curve_type == "Balanced Datasets":
+                learning_curve_data = get_learning_curve_data_multiple_techniques(
+                    classifier_name=classifier_name,
+                    classifier=classifier,
+                    techniques_data=self.current_balanced_datasets,
+                    train_sizes=train_sizes,
+                    n_folds=n_folds,
+                )
 
-            title = f"{classifier_name} - Learning Curves"
+                title = f"Learning Curves for {classifier_name} Evaluated Against {learning_curve_type}"
 
-            plot_learning_curves(
-                learning_curve_data, title=title, save_path=save_path, display=display
-            )
+                plot_learning_curves(
+                    learning_curve_data,
+                    title=title,
+                    save_path=save_path,
+                    display=display
+                )
+            elif learning_curve_type == "Original Dataset":
+                learning_curve_data = get_learning_curve_data_against_imbalanced_multiple_techniques(
+                    classifier_name=classifier_name,
+                    classifier=classifier,
+                    techniques_data=self.current_balanced_datasets,
+                    X_test=self.X_test,
+                    y_test=self.y_test,
+                    train_sizes=train_sizes,
+                    n_folds=n_folds,
+                )
+
+                title = f"Learning Curves for {classifier_name} Evaluated Against {learning_curve_type}"
+
+                plot_learning_curves(
+                    learning_curve_data, title=title, save_path=save_path, display=display
+                )
 
         except Exception as e:
             logging.warning(

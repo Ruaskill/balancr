@@ -525,7 +525,9 @@ def test_generate_learning_curves(framework, tmp_path):
 
     learning_curve_path = tmp_path / "learning_curve.png"
     framework.generate_learning_curves(
-        classifier_name="RandomForestClassifier", save_path=learning_curve_path
+        classifier_name="RandomForestClassifier",
+        save_path=learning_curve_path,
+        learning_curve_type="Balanced Datasets"
     )
     assert learning_curve_path.exists()
 
@@ -533,7 +535,10 @@ def test_generate_learning_curves(framework, tmp_path):
 def test_generate_learning_curves_no_data(framework):
     """Test learning curve generation without data"""
     with pytest.raises(ValueError):
-        framework.generate_learning_curves(classifier_name="RandomForestClassifier")
+        framework.generate_learning_curves(
+            classifier_name="RandomForestClassifier",
+            learning_curve_type="Balanced Datasets"
+        )
 
 
 def test_handle_quality_issues(framework):

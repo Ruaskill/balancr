@@ -1535,7 +1535,7 @@ def run_comparison(args):
         )
 
         # Process each classifier and save its results in a separate directory
-        standard_start_time = time.time()
+        orig_start_time = time.time()
         for classifier_name in current_config.get("classifiers", {}):
             logging.info(f"Processing results for classifier: {classifier_name}")
 
@@ -1543,18 +1543,18 @@ def run_comparison(args):
             classifier_dir = output_dir / classifier_name
             classifier_dir.mkdir(exist_ok=True)
 
-            # Create standard metrics directory
-            std_metrics_dir = classifier_dir / "standard_metrics"
-            std_metrics_dir.mkdir(exist_ok=True)
+            # Create original dataset metrics directory
+            orig_metrics_dir = classifier_dir / "metrics_on_original_test"
+            orig_metrics_dir.mkdir(exist_ok=True)
 
-            # Save standard metrics in requested formats
+            # Save original dataset metrics in requested formats
             for format_type in save_metrics_formats:
                 if format_type == "none":
                     continue
 
-                results_file = std_metrics_dir / f"comparison_results.{format_type}"
+                results_file = orig_metrics_dir / f"comparison_results.{format_type}"
                 logging.info(
-                    f"Saving standard metrics for {classifier_name} to {results_file}"
+                    f"Saving metrics from testing against original test data for {classifier_name} to {results_file}"
                 )
 
                 # We need a modified save_results method that can extract a specific classifier's results
@@ -1565,15 +1565,16 @@ def run_comparison(args):
                     file_type=format_type,
                 )
 
-            # Generate and save standard metrics visualisations
+            # Generate and save original test data metrics visualisations
             for format_type in save_vis_formats:
                 if format_type == "none":
                     continue
 
                 if "metrics" in vis_types_to_generate or "all" in visualisations:
-                    metrics_path = std_metrics_dir / f"metrics_comparison.{format_type}"
+                    metrics_path = orig_metrics_dir / f"metrics_comparison.{format_type}"
                     logging.info(
-                        f"Generating metrics comparison for {classifier_name} in {format_type} format..."
+                        f"Generating metrics comparison for {classifier_name}, against original test data,"
+                        f"in {format_type} format..."
                     )
 
                     metrics_to_plot = current_config.get("output", {}).get(
@@ -1591,7 +1592,7 @@ def run_comparison(args):
 
                     if "radar" in vis_types_to_generate or "all" in visualisations:
                         std_radar_path = (
-                            classifier_dir / f"standard_metrics_radar.{format_type}"
+                            classifier_dir / f"metrics_on_original_test_radar.{format_type}"
                         )
                         plot_radar_chart(
                             results,
@@ -1603,7 +1604,7 @@ def run_comparison(args):
                         )
 
                     if "3d" in vis_types_to_generate or "all" in visualisations:
-                        std_3d_path = output_dir / "standard_metrics_3d.html"
+                        std_3d_path = output_dir / "metrics_on_original_test_3d.html"
                         plot_3d_scatter(
                             results,
                             metric_type="standard_metrics",
@@ -1612,9 +1613,47 @@ def run_comparison(args):
                             display=display_visualisations,
                         )
 
-        standard_total_time = time.time() - standard_start_time
+                if (
+                    "learning_curves" in vis_types_to_generate
+                    or "all" in visualisations
+                ):
+                    orig_learning_curve_path = (
+                        orig_metrics_dir / f"learning_curves.{format_type}"
+                    )
+
+                    start_time = time.time()
+                    logging.info(
+                        f"Generating learning curves for {classifier_name}, against original test data "
+                        f"in {format_type} format..."
+                    )
+
+                    # Get learning curve parameters from config
+                    learning_curve_points = eval_config.get(
+                        "learning_curve_points", 10
+                    )
+                    learning_curve_folds = eval_config.get(
+                        "learning_curve_folds", 5
+                    )
+                    train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
+
+                    learning_curve_type = "Original Dataset"
+                    framework.generate_learning_curves(
+                        classifier_name=classifier_name,
+                        learning_curve_type=learning_curve_type,
+                        train_sizes=train_sizes,
+                        n_folds=learning_curve_folds,
+                        save_path=str(orig_learning_curve_path),
+                        display=display_visualisations,
+                    )
+                    cv_learning_curves_time = time.time() - start_time
+                    logging.info(
+                        f"Successfully generated cv learning curves for {classifier_name}, against original test data "
+                        f"(Time Taken: {format_time(cv_learning_curves_time)})"
+                    )
+
+        orig_total_time = time.time() - orig_start_time
         logging.info(
-            f"Standard metrics evaluation total time: {format_time(standard_total_time)}"
+            f"Metrics evaluation against original test data total time: {format_time(orig_total_time)}"
         )
 
         # If cross-validation is enabled, create CV metrics directory and save results
@@ -1625,7 +1664,7 @@ def run_comparison(args):
                 classifier_dir = output_dir / classifier_name
                 classifier_dir.mkdir(exist_ok=True)
 
-                cv_metrics_dir = classifier_dir / "cv_metrics"
+                cv_metrics_dir = classifier_dir / "metrics_on_balanced_cv"
                 cv_metrics_dir.mkdir(exist_ok=True)
 
                 # Save CV metrics in requested formats
@@ -1717,8 +1756,10 @@ def run_comparison(args):
                         )
                         train_sizes = np.linspace(0.1, 1.0, learning_curve_points)
 
+                        learning_curve_type = "Balanced Datasets"
                         framework.generate_learning_curves(
                             classifier_name=classifier_name,
+                            learning_curve_type=learning_curve_type,
                             train_sizes=train_sizes,
                             n_folds=learning_curve_folds,
                             save_path=str(cv_learning_curve_path),
@@ -1739,13 +1780,13 @@ def run_comparison(args):
 
         # Print summary of timing results
         print("\nExecution Time Summary:\n")
-        print(f"  Data Loading:        {format_time(load_time)}")
-        print(f"  Balancing:           {format_time(balancing_time)}")
-        print(f"  Training Classifiers: {format_time(training_time)}")
-        print(f"  Standard Metrics Evaluation: {format_time(standard_total_time)}")
+        print(f"  Data Loading:                                               {format_time(load_time)}")
+        print(f"  Balancing:                                                  {format_time(balancing_time)}")
+        print(f"  Training Classifiers:                                       {format_time(training_time)}")
+        print(f"  Metrics From Testing Against Original Test Dataset:         {format_time(orig_total_time)}")
         if cv_enabled:
-            print(f"  CV Metrics Evaluation: {format_time(cv_total_time)}")
-        print(f"  Total Time:          {format_time(total_time)}")
+            print(f"  CV Metrics From Testing Against Balanced Test Datasets:     {format_time(cv_total_time)}")
+        print(f"  Total Time:                                                 {format_time(total_time)}")
 
         print("\nResults Summary:")
 
@@ -1758,7 +1799,7 @@ def run_comparison(args):
         )
 
         if has_standard_metrics:
-            print("\nStandard Metrics:")
+            print("\nMetrics From Testing Against Original Test Dataset:")
             for classifier_name, classifier_results in results.items():
                 print(f"\n{classifier_name}:")
                 for technique_name, technique_metrics in classifier_results.items():
@@ -1783,7 +1824,7 @@ def run_comparison(args):
         )
 
         if has_cv_metrics:
-            print("\nCross Validation Metrics:")
+            print("\nCross Validation Metrics From Testing Against Balanced Test Datasets:")
             for classifier_name, classifier_results in results.items():
                 print(f"\n{classifier_name}:")
                 for technique_name, technique_metrics in classifier_results.items():

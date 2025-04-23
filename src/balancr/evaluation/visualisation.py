@@ -290,6 +290,11 @@ def plot_learning_curves(
     if num_techniques == 1:
         axes = [axes]
 
+    fig.suptitle(
+        title,
+        size=16,
+    )
+
     for idx, (technique_name, data) in enumerate(learning_curve_data.items()):
         # Extract the train_sizes, train_scores, and val_scores from the dictionary
         train_sizes = data["train_sizes"]
@@ -317,7 +322,7 @@ def plot_learning_curves(
             train_sizes, val_mean - val_std, val_mean + val_std, alpha=0.1, color="red"
         )
 
-        ax.set_title(f"{technique_name} - Learning Curves")
+        ax.set_title(f"{technique_name}")
         ax.set_xlabel("Training Examples")
         ax.set_ylabel("Score")
         ax.legend(loc="best")
