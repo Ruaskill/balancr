@@ -1,8 +1,7 @@
 import pytest
 import numpy as np
 from unittest.mock import patch, MagicMock
-from imbalance_framework.base import BaseBalancer
-from imbalance_framework.technique_registry import TechniqueRegistry
+from balancr import BaseBalancer, TechniqueRegistry
 
 
 # Mock classes

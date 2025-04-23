@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from evaluation.metrics import (
+from balancr.evaluation import (
     get_metrics,
     get_cv_scores,
     get_learning_curve_data,

@@ -18,7 +18,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "balancr=imbalance_framework.cli.main:main",
+            "balancr=balancr.cli.main:main",
         ],
     },
     extras_require={

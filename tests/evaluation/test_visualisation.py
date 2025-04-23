@@ -4,7 +4,7 @@ import sys
 import plotly
 import numpy as np
 from unittest.mock import patch
-from evaluation.visualisation import (
+from balancr.evaluation import (
     plot_class_distribution,
     plot_class_distributions_comparison,
     plot_comparison_results,

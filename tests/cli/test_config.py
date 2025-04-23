@@ -2,7 +2,7 @@ import pytest
 import json
 from unittest.mock import patch
 
-from imbalance_framework.cli import config
+from balancr.cli import config
 
 
 @pytest.fixture
@@ -209,7 +209,7 @@ def test_deep_update():
 
 
 @patch("builtins.print")
-@patch("imbalance_framework.cli.config.load_config")
+@patch("balancr.cli.config.load_config")
 def test_print_config_success(mock_load_config, mock_print, sample_config):
     """Test successful printing of configuration."""
     mock_load_config.return_value = sample_config
@@ -224,7 +224,7 @@ def test_print_config_success(mock_load_config, mock_print, sample_config):
 
 
 @patch("logging.error")
-@patch("imbalance_framework.cli.config.load_config")
+@patch("balancr.cli.config.load_config")
 def test_print_config_error(mock_load_config, mock_error):
     """Test error handling in print_config."""
     # Make load_config raise an exception

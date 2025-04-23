@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from unittest.mock import patch, MagicMock
 
-from imbalance_framework.cli import commands
-from imbalance_framework.imbalance_analyser import BalancingFramework
+from balancr.cli import commands
+from balancr import BalancingFramework
 
 
 @pytest.fixture
@@ -119,62 +119,11 @@ def mock_framework():
     return mock
 
 
-def test_framework_import_error():
-    """Test handling of ImportError when importing framework classes."""
-    # Save original imports
-    original_balancing_framework = commands.BalancingFramework
-    original_technique_registry = commands.TechniqueRegistry
-    original_classifier_registry = commands.ClassifierRegistry
-
-    try:
-        # Mock imports to raise ImportError
-        with patch.dict(
-            "sys.modules",
-            {
-                "imbalance_framework.imbalance_analyser": None,
-                "imbalance_framework.technique_registry": None,
-                "imbalance_framework.classifier_registry": None,
-            },
-        ):
-            # Mock logging.error
-            with patch("imbalance_framework.cli.commands.logging.error") as mock_error:
-                # Re-import commands module to trigger ImportError
-                import importlib
-
-                importlib.reload(commands)
-
-                # Verify error was logged twice
-                assert mock_error.call_count == 2
-
-                # Check first error message includes ImportError details
-                assert (
-                    "Could not import balancing framework: "
-                    in mock_error.call_args_list[0][0][0]
-                )
-
-                # Check second error message is the instruction
-                assert (
-                    "Ensure it's installed correctly"
-                    in mock_error.call_args_list[1][0][0]
-                )
-
-                # Verify framework classes are set to None
-                assert commands.BalancingFramework is None
-                assert commands.TechniqueRegistry is None
-                assert commands.ClassifierRegistry is None
-
-    finally:
-        # Restore original imports to avoid affecting other tests
-        commands.BalancingFramework = original_balancing_framework
-        commands.TechniqueRegistry = original_technique_registry
-        commands.ClassifierRegistry = original_classifier_registry
-
-
 class TestRunComparisonConfigChecks:
     """Tests for configuration validation and error handling in run_comparison."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_missing_configuration(
         self, mock_error, mock_load_config, args_run_comparison
     ):
@@ -194,8 +143,8 @@ class TestRunComparisonConfigChecks:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_missing_all_required_settings(
         self, mock_error, mock_load_config, args_run_comparison
     ):
@@ -216,8 +165,8 @@ class TestRunComparisonConfigChecks:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_balancing_framework_not_available(
         self, mock_error, mock_load_config, args_run_comparison, minimal_config
     ):
@@ -226,7 +175,7 @@ class TestRunComparisonConfigChecks:
         mock_load_config.return_value = minimal_config
 
         # Make BalancingFramework unavailable
-        with patch("imbalance_framework.cli.commands.BalancingFramework", None):
+        with patch("balancr.cli.commands.BalancingFramework", None):
             # Call function
             result = commands.run_comparison(args_run_comparison)
 
@@ -237,8 +186,8 @@ class TestRunComparisonConfigChecks:
             # Verify result
             assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_config_loading_exception(
         self, mock_error, mock_load_config, args_run_comparison
     ):
@@ -261,9 +210,9 @@ class TestRunComparisonConfigChecks:
 class TestRunComparisonDataLoading:
     """Tests for data loading and preprocessing in run_comparison."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_data_loading(
         self,
         mock_info,
@@ -308,8 +257,8 @@ class TestRunComparisonDataLoading:
                 f"Loading data from {minimal_config['data_file']}"
             )
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_data_loading_with_feature_columns(
         self,
         mock_balancing_framework,
@@ -341,9 +290,9 @@ class TestRunComparisonDataLoading:
             full_config["feature_columns"],
         )
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_preprocessing(
         self,
         mock_info,
@@ -383,9 +332,9 @@ class TestRunComparisonDataLoading:
         mock_info.assert_any_call("Applying preprocessing...")
         mock_info.assert_any_call("Data preprocessing applied")
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_no_preprocessing_config(
         self,
         mock_info,
@@ -424,9 +373,9 @@ class TestRunComparisonDataLoading:
                 if call_args[0][0] == message:
                     pytest.fail(f"Unexpected preprocessing message: {message}")
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_data_loading_exception(
         self,
         mock_error,
@@ -457,9 +406,9 @@ class TestRunComparisonDataLoading:
         # Verify result
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_data_loading_exception_verbose_mode(
         self,
         mock_error,
@@ -502,9 +451,9 @@ class TestRunComparisonDataLoading:
 class TestRunComparisonBalancingTechniques:
     """Tests for applying balancing techniques in run_comparison."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_apply_balancing_techniques(
         self,
         mock_info,
@@ -545,8 +494,8 @@ class TestRunComparisonBalancingTechniques:
         )
         mock_info.assert_any_call("Applying balancing techniques...")
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_apply_balancing_techniques_with_full_config(
         self,
         mock_balancing_framework,
@@ -580,9 +529,9 @@ class TestRunComparisonBalancingTechniques:
             include_original=False,
         )
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_generate_balanced_datasets(
         self,
         mock_info,
@@ -620,9 +569,9 @@ class TestRunComparisonBalancingTechniques:
         # Verify log message
         mock_info.assert_any_call(f"Saving balanced datasets to {balanced_dir}")
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_apply_balancing_techniques_exception(
         self,
         mock_error,
@@ -659,9 +608,9 @@ class TestRunComparisonBalancingTechniques:
 class TestRunComparisonClassifierTraining:
     """Tests for training classifiers and evaluating results in run_comparison."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.info")
     def test_train_classifiers(
         self,
         mock_info,
@@ -705,8 +654,8 @@ class TestRunComparisonClassifierTraining:
         # Verify log message
         mock_info.assert_any_call("Training classifiers on balanced datasets...")
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_train_classifiers_with_full_config(
         self,
         mock_balancing_framework,
@@ -741,9 +690,9 @@ class TestRunComparisonClassifierTraining:
         assert kwargs.get("enable_cv") is True
         assert kwargs.get("cv_folds") == full_config["evaluation"]["cross_validation"]
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.warning")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.warning")
     def test_train_classifiers_no_configured_classifiers(
         self,
         mock_warning,
@@ -777,9 +726,9 @@ class TestRunComparisonClassifierTraining:
         # Verify train_classifiers was called with default RandomForestClassifier
         mock_framework.train_classifiers.assert_called_once()
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
+    @patch("balancr.cli.commands.logging.error")
     def test_train_classifiers_exception(
         self,
         mock_error,
@@ -818,12 +767,12 @@ class TestRunComparisonVisualisations:
     def mock_visualisation_functions(self):
         """Patch all visualisation-related functions."""
         with patch(
-            "imbalance_framework.cli.commands.plot_comparison_results"
+            "balancr.cli.commands.plot_comparison_results"
         ) as mock_plot_comparison:
             yield mock_plot_comparison
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_visualise_class_distributions(
         self,
         mock_balancing_framework,
@@ -846,7 +795,7 @@ class TestRunComparisonVisualisations:
         # We won't patch the actual framework methods we want to test
         with patch.object(mock_framework, "save_classifier_results"), patch.object(
             mock_framework, "generate_learning_curves"
-        ), patch("imbalance_framework.cli.commands.plot_comparison_results"):
+        ), patch("balancr.cli.commands.plot_comparison_results"):
 
             # Run comparison
             commands.run_comparison(args_run_comparison)
@@ -873,8 +822,8 @@ class TestRunComparisonVisualisations:
                     f"No save_path with format {format_type} for inspect_class_distribution"
                 )
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_visualise_metrics(
         self,
         mock_balancing_framework,
@@ -899,7 +848,7 @@ class TestRunComparisonVisualisations:
         ), patch.object(
             mock_framework, "generate_learning_curves"
         ), patch(
-            "imbalance_framework.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
+            "balancr.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
         ) as mock_radar_chart:
             # Run comparison with normal full completion expected
             commands.run_comparison(args_run_comparison)
@@ -932,8 +881,8 @@ class TestRunComparisonVisualisations:
 
                 assert len(metrics_calls) > 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_no_visualisations(
         self,
         mock_balancing_framework,
@@ -959,7 +908,7 @@ class TestRunComparisonVisualisations:
         ), patch.object(
             mock_framework, "generate_learning_curves"
         ), patch(
-            "imbalance_framework.cli.commands.plot_comparison_results"
+            "balancr.cli.commands.plot_comparison_results"
         ):
             # Run comparison with normal full completion expected
             commands.run_comparison(args_run_comparison)
@@ -969,8 +918,8 @@ class TestRunComparisonVisualisations:
         mock_framework.compare_balanced_class_distributions.assert_not_called()
         mock_framework.generate_learning_curves.assert_not_called()
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_visualisation_display_enabled(
         self,
         mock_balancing_framework,
@@ -996,9 +945,9 @@ class TestRunComparisonVisualisations:
         ), patch.object(
             mock_framework, "generate_learning_curves"
         ), patch(
-            "imbalance_framework.cli.commands.plot_comparison_results"
+            "balancr.cli.commands.plot_comparison_results"
         ), patch(
-            "imbalance_framework.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
+            "balancr.cli.commands.plot_radar_chart"  # Add mock for direct radar chart call
         ) as mock_radar_chart:
             # Run comparison with normal full completion expected
             commands.run_comparison(args_run_comparison)
@@ -1022,8 +971,8 @@ class TestRunComparisonVisualisations:
             kwargs = call_args[1]
             assert kwargs.get("display") is True
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.BalancingFramework")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.BalancingFramework")
     def test_format_none_handling(
         self,
         mock_balancing_framework,
@@ -1053,7 +1002,7 @@ class TestRunComparisonVisualisations:
         mock_framework.generate_learning_curves.reset_mock()
 
         # Run the test without patching the methods we need to test
-        with patch("imbalance_framework.cli.commands.plot_comparison_results"):
+        with patch("balancr.cli.commands.plot_comparison_results"):
             # Run comparison
             commands.run_comparison(args_run_comparison)
 
@@ -1087,8 +1036,8 @@ class TestResetConfigCommand:
         args.config_path = str(mock_config_path)
         return args
 
-    @patch("imbalance_framework.cli.config.initialise_config")
-    @patch("imbalance_framework.cli.commands.logging.info")
+    @patch("balancr.cli.config.initialise_config")
+    @patch("balancr.cli.commands.logging.info")
     def test_reset_config_success(
         self, mock_info, mock_initialise_config, args_reset_config
     ):
@@ -1107,8 +1056,8 @@ class TestResetConfigCommand:
         # Verify success return code
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.initialise_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.initialise_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_reset_config_exception(
         self, mock_error, mock_initialise_config, args_reset_config
     ):

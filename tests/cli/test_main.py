@@ -3,7 +3,7 @@ import argparse
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from imbalance_framework.cli import main
+from balancr.cli import main
 
 
 @pytest.fixture
@@ -110,9 +110,9 @@ class TestCommandRegistrationSample:
         assert kwargs.get("required", False) is True
 
 
-@patch("imbalance_framework.cli.main.create_parser")
-@patch("imbalance_framework.cli.utils.setup_logging")
-@patch("imbalance_framework.cli.config.initialise_config")
+@patch("balancr.cli.main.create_parser")
+@patch("balancr.cli.utils.setup_logging")
+@patch("balancr.cli.config.initialise_config")
 class TestMainFunction:
     """Essential tests for the main function."""
 
@@ -197,9 +197,9 @@ class TestMainFunction:
 class TestLoggingConfig:
     """Tests for logging configuration in main."""
 
-    @patch("imbalance_framework.cli.main.create_parser")
-    @patch("imbalance_framework.cli.utils.setup_logging")
-    @patch("imbalance_framework.cli.config.initialise_config")
+    @patch("balancr.cli.main.create_parser")
+    @patch("balancr.cli.utils.setup_logging")
+    @patch("balancr.cli.config.initialise_config")
     def test_main_sets_up_verbose_logging(
         self, mock_init_config, mock_setup_logging, mock_create_parser
     ):
@@ -224,9 +224,9 @@ class TestLoggingConfig:
             # Verify logging was set up with verbose level
             mock_setup_logging.assert_called_once_with("verbose")
 
-    @patch("imbalance_framework.cli.main.create_parser")
-    @patch("imbalance_framework.cli.utils.setup_logging")
-    @patch("imbalance_framework.cli.config.initialise_config")
+    @patch("balancr.cli.main.create_parser")
+    @patch("balancr.cli.utils.setup_logging")
+    @patch("balancr.cli.config.initialise_config")
     def test_main_sets_up_quiet_logging(
         self, mock_init_config, mock_setup_logging, mock_create_parser
     ):
@@ -255,9 +255,9 @@ class TestLoggingConfig:
 class TestConfigInitialisation:
     """Tests for config initialisation in main."""
 
-    @patch("imbalance_framework.cli.main.create_parser")
-    @patch("imbalance_framework.cli.utils.setup_logging")
-    @patch("imbalance_framework.cli.config.initialise_config")
+    @patch("balancr.cli.main.create_parser")
+    @patch("balancr.cli.utils.setup_logging")
+    @patch("balancr.cli.config.initialise_config")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.mkdir")
     def test_main_creates_config_dir(
@@ -296,9 +296,9 @@ class TestConfigInitialisation:
         # Verify config was initialised
         mock_init_config.assert_called_once_with(mock_args.config_path)
 
-    @patch("imbalance_framework.cli.main.create_parser")
-    @patch("imbalance_framework.cli.utils.setup_logging")
-    @patch("imbalance_framework.cli.config.initialise_config")
+    @patch("balancr.cli.main.create_parser")
+    @patch("balancr.cli.utils.setup_logging")
+    @patch("balancr.cli.config.initialise_config")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.mkdir")
     def test_main_skips_config_init_if_exists(

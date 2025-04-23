@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from imbalance_framework.cli import commands
+from balancr.cli import commands
 
 
 @pytest.fixture
@@ -26,8 +26,8 @@ def args_configure_metrics(mock_config_path):
 class TestConfigureMetricsCommand:
     """Tests for the configure_metrics command."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_metrics_success(
         self, mock_update_config, mock_load_config, args_configure_metrics
     ):
@@ -54,8 +54,8 @@ class TestConfigureMetricsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_metrics_with_existing_output(
         self, mock_update_config, mock_load_config, args_configure_metrics
     ):
@@ -100,8 +100,8 @@ class TestConfigureMetricsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_metrics_custom_values(
         self, mock_update_config, mock_load_config, args_configure_metrics
     ):
@@ -126,8 +126,8 @@ class TestConfigureMetricsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_configure_metrics_load_config_error(
         self, mock_error, mock_load_config, args_configure_metrics
     ):
@@ -145,9 +145,9 @@ class TestConfigureMetricsCommand:
         # Verify function returned failure
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_configure_metrics_update_config_error(
         self, mock_error, mock_update_config, mock_load_config, args_configure_metrics
     ):
@@ -184,8 +184,8 @@ def args_configure_visualisations(mock_config_path):
 class TestConfigureVisualisationsCommand:
     """Tests for the configure_visualisations command."""
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_visualisations_success(
         self, mock_update_config, mock_load_config, args_configure_visualisations
     ):
@@ -219,8 +219,8 @@ class TestConfigureVisualisationsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_visualisations_with_existing_output(
         self, mock_update_config, mock_load_config, args_configure_visualisations
     ):
@@ -270,8 +270,8 @@ class TestConfigureVisualisationsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_visualisations_custom_values(
         self, mock_update_config, mock_load_config, args_configure_visualisations
     ):
@@ -298,8 +298,8 @@ class TestConfigureVisualisationsCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_configure_visualisations_load_config_error(
         self, mock_error, mock_load_config, args_configure_visualisations
     ):
@@ -317,9 +317,9 @@ class TestConfigureVisualisationsCommand:
         # Verify function returned failure
         assert result == 1
 
-    @patch("imbalance_framework.cli.config.load_config")
-    @patch("imbalance_framework.cli.config.update_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.load_config")
+    @patch("balancr.cli.config.update_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_configure_visualisations_update_config_error(
         self,
         mock_error,
@@ -362,7 +362,7 @@ def args_configure_evaluation(mock_config_path):
 class TestConfigureEvaluationCommand:
     """Tests for the configure_evaluation command."""
 
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_evaluation_success(
         self, mock_update_config, args_configure_evaluation
     ):
@@ -404,7 +404,7 @@ class TestConfigureEvaluationCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.update_config")
+    @patch("balancr.cli.config.update_config")
     def test_configure_evaluation_custom_values(
         self, mock_update_config, args_configure_evaluation
     ):
@@ -432,8 +432,8 @@ class TestConfigureEvaluationCommand:
         # Verify function returned success
         assert result == 0
 
-    @patch("imbalance_framework.cli.config.update_config")
-    @patch("imbalance_framework.cli.commands.logging.error")
+    @patch("balancr.cli.config.update_config")
+    @patch("balancr.cli.commands.logging.error")
     def test_configure_evaluation_update_config_error(
         self, mock_error, mock_update_config, args_configure_evaluation
     ):

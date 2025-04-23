@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 import pandas as pd
 from unittest.mock import patch, MagicMock
-from data.preprocessor import DataPreprocessor
+from balancr.data import DataPreprocessor
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
 
 
