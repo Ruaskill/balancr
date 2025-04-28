@@ -6,6 +6,7 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
+from sklearn.calibration import label_binarize
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -158,7 +159,7 @@ def get_metrics(
             "g_mean": g_mean,
         }
 
-        # Add multiclass ROC AUC if possible
+        # Add multiclass ROC AUC and average_precision if possible
         try:
             # For multiclass, use roc_auc_score with multi_class parameter
             if hasattr(classifier, "predict_proba"):
@@ -166,15 +167,34 @@ def get_metrics(
                     y_test, y_pred_proba, multi_class="ovr", average="macro"
                 )
 
-                # Calculate average precision for multiclass
-                metrics["average_precision"] = precision_score(
-                    y_test, y_pred, average="macro"
-                )
+                # Calculate average precision for multiclass using one-vs-rest
+                y_test_binary = label_binarize(y_test, classes=np.unique(y_test))
+                n_classes = y_test_binary.shape[1]
+                average_precisions = []
+
+                for i in range(n_classes):
+                    # For each class, calculate average precision
+                    try:
+                        ap_score = average_precision_score(
+                            y_test_binary[:, i], y_pred_proba[:, i]
+                        )
+                        average_precisions.append(ap_score)
+                    except (ValueError, IndexError) as e:
+                        logging.warning(
+                            f"Error calculating average precision for class {i}: {e}"
+                        )
+
+                # Take the macro average of per-class average precisions
+                if average_precisions:
+                    metrics["average_precision"] = np.mean(average_precisions)
+                else:
+                    metrics["average_precision"] = float("nan")
             else:
                 metrics["roc_auc"] = float("nan")
                 metrics["average_precision"] = float("nan")
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
             # Skip these metrics if they can't be calculated
+            logging.warning(f"Error calculating ROC AUC or average precision: {e}")
             metrics["roc_auc"] = float("nan")
             metrics["average_precision"] = float("nan")
 
@@ -463,7 +483,9 @@ def get_learning_curve_data_against_imbalanced_multiple_techniques(
     """
 
     def safe_index(X, indices):
-        return X.iloc[indices] if isinstance(X, (pd.DataFrame, pd.Series)) else X[indices]
+        return (
+            X.iloc[indices] if isinstance(X, (pd.DataFrame, pd.Series)) else X[indices]
+        )
 
     learning_curve_data = {}
 
