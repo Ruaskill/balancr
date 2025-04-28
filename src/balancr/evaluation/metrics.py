@@ -221,7 +221,7 @@ def get_cv_scores(
         Dictionary containing average metric scores
     """
     import logging
-    from sklearn.model_selection import cross_val_score, cross_val_predict
+    from sklearn.model_selection import cross_validate, cross_val_predict
     from sklearn.metrics import roc_auc_score, confusion_matrix
     import numpy as np
 
@@ -229,32 +229,44 @@ def get_cv_scores(
     unique_classes = np.unique(y_balanced)
     is_multiclass = len(unique_classes) > 2
 
-    # Initialise metrics dictionary
-    metrics = {}
-
-    # Use scikit-learn's cross_val_score for standard metrics
-    # Accuracy doesn't need special handling for multiclass
-    scores = cross_val_score(
-        classifier, X_balanced, y_balanced, cv=n_folds, scoring="accuracy"
-    )
-    metrics["cv_accuracy_mean"] = scores.mean()
-    metrics["cv_accuracy_std"] = scores.std()
+    # Set up scoring metrics
+    scoring = {
+        "accuracy": "accuracy",
+    }
 
     # For metrics that need proper multiclass handling
-    for metric in ["precision", "recall", "f1"]:
-        # Use macro averaging for multiclass problems
-        if is_multiclass:
-            scoring = f"{metric}_macro"
-        else:
-            scoring = metric
-
-        scores = cross_val_score(
-            classifier, X_balanced, y_balanced, cv=n_folds, scoring=scoring
+    if is_multiclass:
+        scoring.update(
+            {"precision": "precision_macro", "recall": "recall_macro", "f1": "f1_macro"}
         )
-        metrics[f"cv_{metric}_mean"] = scores.mean()
-        metrics[f"cv_{metric}_std"] = scores.std()
+    else:
+        scoring.update({"precision": "precision", "recall": "recall", "f1": "f1"})
 
-    # For ROC-AUC and G-mean, we need the predictions
+    # Create the results dictionary
+    metrics = {}
+
+    # Run cross-validation once with all metrics
+    try:
+        cv_results = cross_validate(
+            classifier,
+            X_balanced,
+            y_balanced,
+            cv=n_folds,
+            scoring=scoring,
+            return_train_score=False,
+        )
+
+        # Extract results and format the keys as expected
+        for metric_name, values in cv_results.items():
+            if metric_name.startswith("test_"):
+                base_name = metric_name[5:]  # Remove 'test_' prefix
+                metrics[f"cv_{base_name}_mean"] = values.mean()
+                metrics[f"cv_{base_name}_std"] = values.std()
+
+    except Exception as e:
+        logging.warning(f"Error during cross-validation for standard metrics: {e}")
+
+    # For G-mean and ROC-AUC, we still need the predictions
     try:
         # Get cross-validated predictions
         y_pred = cross_val_predict(classifier, X_balanced, y_balanced, cv=n_folds)
@@ -299,7 +311,6 @@ def get_cv_scores(
                     f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
                     "Some classes may not have been predicted correctly."
                 )
-                # We don't set the metrics here, letting the absence indicate an issue
         else:
             # Binary case
             cm = confusion_matrix(y_balanced, y_pred)
@@ -317,13 +328,11 @@ def get_cv_scores(
                     f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
                     "Unexpected confusion matrix shape."
                 )
-                # Metrics not set
     except Exception as e:
         logging.warning(
             f"Could not calculate G-mean for classifier {classifier.__class__.__name__}. "
             f"Error: {str(e)}"
         )
-        # Metrics not set
 
     # ROC-AUC calculation - separate try block to ensure G-mean calculation happens even if ROC-AUC fails
     try:
@@ -360,13 +369,11 @@ def get_cv_scores(
                 f"Classifier {classifier.__class__.__name__} does not support predict_proba. "
                 "ROC-AUC cannot be calculated."
             )
-            # Metrics not set
     except Exception as e:
         logging.warning(
             f"Could not calculate ROC-AUC for classifier {classifier.__class__.__name__}. "
             f"Error: {str(e)}"
         )
-        # Metrics not set
 
     return metrics
 
