@@ -101,6 +101,7 @@ def load_data(args):
             for cls, count in distribution.items():
                 pct = (count / total) * 100
                 print(f"  Class {cls}: {pct:.2f}%")
+            print()
 
         # Update config with new settings
         config.update_config(args.config_path, settings)

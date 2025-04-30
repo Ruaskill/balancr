@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import logging
 from typing import Tuple, Union, Optional
 from pathlib import Path
 
@@ -43,6 +44,45 @@ class DataLoader:
         # Extract target variable
         if target_column not in data.columns:
             raise ValueError(f"Target column '{target_column}' not found in data")
+
+        # Check for missing target values
+        missing_target_mask = data[target_column].isna()
+        missing_target_count = missing_target_mask.sum()
+
+        if missing_target_count > 0:
+            # Get the row numbers with missing target values (0-based index)
+            missing_target_rows = data.index[missing_target_mask].tolist()
+
+            # Log warning with list of rows that will be removed
+            if len(missing_target_rows) <= 20:  # Show all rows if 20 or fewer
+                logging.warning(
+                    f"Rows with missing target values found and will be removed: {missing_target_rows}"
+                )
+            else:  # Show summary if more than 20 rows
+                logging.warning(
+                    f"Found {missing_target_count} rows with missing target values that will be removed. "
+                    f"First few row indices: {missing_target_rows[:10]}..."
+                )
+
+            # Remove rows with missing target values
+            data = data.dropna(subset=[target_column])
+
+            # Provide summary of the cleaning action
+            logging.info(
+                f"Removed {missing_target_count} rows with missing target values. "
+                f"Remaining rows: {len(data)}"
+            )
+
+            # Warn if a large proportion of the dataset was removed
+            original_row_count = len(data) + missing_target_count
+            removed_percentage = (missing_target_count / original_row_count) * 100
+            if removed_percentage > 10:
+                logging.warning(
+                    f"A significant portion of the dataset ({removed_percentage:.1f}%) "
+                    f"was removed due to missing target values."
+                )
+
+        # Now extract the cleaned target variable
         y = data[target_column].values
 
         # Extract features

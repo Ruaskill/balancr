@@ -694,6 +694,6 @@ class BalancingFramework:
 
         # Print all warnings
         if warnings:
-            print("Data Quality Warnings:")
+            print("\nData Quality Warnings:")
             for warning in warnings:
                 print(f"- {warning}")
